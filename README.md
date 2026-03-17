@@ -88,12 +88,56 @@ Use o arquivo `.env.example` como base:
 - `UPLOAD_MAX_SIZE_MB`: tamanho maximo por arquivo em MB (padrao 15).
 - `ALLOWED_ORIGINS`: lista de origens permitidas, separadas por virgula (ex.: `https://seu-dominio.com`).
 
+### Como configurar no `.env` e no GitHub
+
+No ambiente local, a aplicacao le tudo do arquivo `.env`.
+
+No deploy via GitHub Actions + Cloud Run, a workflow le:
+
+- `vars.*` para configuracoes nao sensiveis.
+- `secrets.*` para credenciais e segredos.
+
+Tabela sugerida:
+
+| Variavel na aplicacao | Colocar no `.env` local | No GitHub Actions | Como obter |
+| --- | --- | --- | --- |
+| `GOOGLE_AUTH_MODE` | Sim | `Variable` | Defina `oauth` para conta Google pessoal / Meu Drive, ou `service_account` para Shared Drive. |
+| `GOOGLE_DRIVE_FOLDER_ID` | Sim | `Variable` | ID da pasta de destino no Google Drive. Pode colar o link inteiro; a aplicacao extrai o ID. |
+| `GUEST_LIST_FILE_ID` | Sim | `Variable` | ID do arquivo `.txt` com a lista de convidados no Google Drive. Pode colar o link inteiro; a aplicacao extrai o ID. |
+| `AUTH_TOKEN_TTL_SECONDS` | Opcional | `Variable` | Tempo de sessao da galeria em segundos. Padrao: `2592000`. |
+| `UPLOAD_MAX_FILES` | Opcional | `Variable` | Limite de arquivos por envio. Padrao: `10`. |
+| `UPLOAD_MAX_SIZE_MB` | Opcional | `Variable` | Limite de tamanho por arquivo em MB. Padrao: `15`. |
+| `SLIDE_INTERVAL_MS` | Opcional | `Variable` | Intervalo do slideshow em milissegundos. Padrao: `2000`. |
+| `FIRST_SLIDE_DELAY_MS` | Opcional | `Variable` | Atraso inicial do slideshow em milissegundos. Padrao: `5000`. |
+| `ALLOWED_ORIGINS` | Opcional | `Variable` | Dominios permitidos, separados por virgula. Ex.: `https://seu-dominio.com,https://www.seu-dominio.com`. |
+| `GALLERY_USER` | Sim | `Secret` | Usuario definido por voce para acessar a galeria privada. |
+| `GALLERY_PASSWORD` | Sim | `Secret` | Senha definida por voce para acessar a galeria privada. |
+| `AUTH_TOKEN_SECRET` | Sim | `Secret` | Segredo aleatorio usado para assinar a sessao da galeria. Gere com um password manager ou `openssl rand -base64 32`. |
+| `GOOGLE_OAUTH_CLIENT_ID` | Se `GOOGLE_AUTH_MODE=oauth` | `Secret` | Criado no Google Cloud em `APIs e Servicos` > `Credentials` > `OAuth client ID`. |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Se `GOOGLE_AUTH_MODE=oauth` | `Secret` | Gerado junto com o `OAuth client ID` no Google Cloud. |
+| `GOOGLE_OAUTH_REFRESH_TOKEN` | Se `GOOGLE_AUTH_MODE=oauth` | `Secret` | Gerado no OAuth Playground usando o escopo `https://www.googleapis.com/auth/drive`. |
+| `GOOGLE_CLIENT_EMAIL` | Se `GOOGLE_AUTH_MODE=service_account` | `Secret` | Campo `client_email` do JSON da Service Account. |
+| `GOOGLE_PRIVATE_KEY_b64` | Se `GOOGLE_AUTH_MODE=service_account` | `Secret` | Campo `private_key` do JSON da Service Account convertido para base64. |
+
+Infra do deploy no GitHub Actions:
+
+| Variavel da pipeline | No GitHub Actions | Como obter |
+| --- | --- | --- |
+| `GCP_PROJECT_ID` | `Variable` | ID do projeto no Google Cloud. |
+| `GCP_REGION` | `Variable` | Regiao do Cloud Run. Ex.: `southamerica-east1`. |
+| `CLOUD_RUN_SERVICE` | `Variable` | Nome do servico no Cloud Run. |
+| `GCP_ARTIFACT_REPOSITORY` | `Variable` | Nome do repositorio Docker no Artifact Registry. |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `Secret` | Provider do Workload Identity Federation no formato `projects/.../providers/...`. |
+| `GCP_SERVICE_ACCOUNT` | `Secret` | E-mail da service account usada pelo deploy. |
+
 Importante:
 
 - Nunca commite `.env`.
 - Em plataformas como Vercel, cadastre as variaveis no painel do projeto.
 - A `GOOGLE_PRIVATE_KEY_b64` deve conter a chave privada inteira convertida para base64.
 - No modo `oauth`, nao use credenciais de Service Account.
+- Em `GitHub` > `Settings` > `Secrets and variables` > `Actions`, cadastre os valores em `Variables` ou `Secrets`.
+- Se a workflow usar `environment: production`, revise tambem `Settings` > `Environments` > `production`.
 
 Exemplo para gerar a chave em base64 localmente:
 
