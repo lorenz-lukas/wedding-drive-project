@@ -1,0 +1,5 @@
+node_modules/
+.env
+.vercel/
+*.pdf
+public/media/qrcode.png

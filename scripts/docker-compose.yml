@@ -1,0 +1,11 @@
+services:
+  generate-qrcode:
+    build:
+      context: ..
+      dockerfile: scripts/Dockerfile
+    container_name: casamento-qrcode-generator
+    volumes:
+      - ../public/media:/app/public/media
+    command: python3 scripts/generate-qrcode.py
+    environment:
+      - PYTHONUNBUFFERED=1

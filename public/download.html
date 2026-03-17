@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Douglas & Juliana | Download das Fotos</title>
+    <meta
+      name="description"
+      content="Baixe todas as fotos enviadas pelos convidados do casamento do Douglas e da Juliana."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Mulish:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="modal-shell" id="auth-modal-shell" aria-hidden="false">
+      <div class="modal-backdrop"></div>
+      <section
+        class="guest-modal auth-modal"
+        id="auth-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-modal-title"
+      >
+        <p class="modal-kicker">Area privada</p>
+        <h2 id="auth-modal-title">Acesso dos noivos</h2>
+        <p class="modal-copy">
+          Informe usuario e senha para baixar as fotos do casamento.
+        </p>
+
+        <form id="auth-form" class="modal-form" novalidate>
+          <label for="authUsername">Usuario</label>
+          <input id="authUsername" name="authUsername" type="text" maxlength="80" required />
+
+          <label for="authPassword">Senha</label>
+          <input
+            id="authPassword"
+            name="authPassword"
+            type="password"
+            maxlength="120"
+            autocomplete="current-password"
+            required
+          />
+
+          <p id="auth-status" class="modal-status" role="status" aria-live="polite"></p>
+
+          <div class="modal-actions">
+            <button id="auth-submit" type="submit">Entrar</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="floral-layer" aria-hidden="true">
+      <div class="flower-spray flower-spray-top-left"></div>
+      <div class="flower-spray flower-spray-top-right"></div>
+      <div class="flower-spray flower-spray-bottom-left"></div>
+      <div class="flower-spray flower-spray-bottom-right"></div>
+    </div>
+
+    <div class="background-memory" aria-hidden="true">
+      <img src="/media/1.jpg" alt="" class="memory-photo memory-photo-1" />
+      <img src="/media/2.jpg" alt="" class="memory-photo memory-photo-2" />
+      <img src="/media/3.jpg" alt="" class="memory-photo memory-photo-3" />
+    </div>
+
+    <div class="bg-shape bg-shape-top"></div>
+    <div class="bg-shape bg-shape-bottom"></div>
+
+    <main class="page">
+      <section class="hero reveal">
+        <div class="hero-seal" aria-hidden="true">D&amp;J</div>
+        <p class="hero-overline">11 de Abril de 2026</p>
+        <h1>Douglas <span>&</span> Juliana</h1>
+      </section>
+
+      <section class="route-card download-card reveal reveal-delay-1" id="download-section">
+        <p class="section-chip">Download das memorias</p>
+        <h2>Baixar todas as fotos</h2>
+        <div class="download-actions">
+          <button id="download-btn" class="download-button" type="button">
+            &#8681; Baixar fotos (.zip)
+          </button>
+          <p class="route-note">
+            O arquivo pode levar alguns instantes para ser preparado, dependendo do volume de fotos.
+          </p>
+        </div>
+        <p id="download-status" class="download-status" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        const AUTH_TOKEN_KEY = "casamento_auth_token";
+        const IS_DOWNLOAD_ROUTE = window.location.pathname.replace(/\/+$/, "") === "/download";
+
+        if (!IS_DOWNLOAD_ROUTE) return;
+
+        const modalShell = document.getElementById("auth-modal-shell");
+        const authForm = document.getElementById("auth-form");
+        const authStatus = document.getElementById("auth-status");
+        const downloadBtn = document.getElementById("download-btn");
+        const downloadStatus = document.getElementById("download-status");
+
+        function getToken() {
+          try {
+            return localStorage.getItem(AUTH_TOKEN_KEY) || "";
+          } catch {
+            return "";
+          }
+        }
+
+        function saveToken(token) {
+          try {
+            if (token) {
+              localStorage.setItem(AUTH_TOKEN_KEY, token);
+              return;
+            }
+
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+          } catch {}
+        }
+
+        function showModal() {
+          modalShell.setAttribute("aria-hidden", "false");
+          modalShell.style.display = "";
+        }
+
+        function hideModal() {
+          modalShell.setAttribute("aria-hidden", "true");
+          modalShell.style.display = "none";
+        }
+
+        async function tryLogin(username, password) {
+          const res = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Credenciais invalidas.");
+          }
+          return data.token;
+        }
+
+        authForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          authStatus.textContent = "Verificando...";
+          const username = document.getElementById("authUsername").value.trim();
+          const password = document.getElementById("authPassword").value;
+
+          try {
+            const token = await tryLogin(username, password);
+            saveToken(token);
+            authStatus.textContent = "";
+            hideModal();
+          } catch (err) {
+            authStatus.textContent = err.message || "Erro ao autenticar.";
+          }
+        });
+
+        downloadBtn.addEventListener("click", async () => {
+          const token = getToken();
+          if (!token) {
+            showModal();
+            return;
+          }
+
+          downloadBtn.disabled = true;
+          downloadStatus.textContent = "Preparando download... isso pode levar alguns instantes.";
+          downloadStatus.classList.remove("error");
+
+          try {
+            const res = await fetch(`/api/download?authToken=${encodeURIComponent(token)}`);
+
+            if (res.status === 401) {
+              saveToken("");
+              showModal();
+              downloadBtn.disabled = false;
+              downloadStatus.textContent = "";
+              return;
+            }
+
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.error || `Erro ${res.status}`);
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "casamento-dougrax-ju.zip";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            downloadStatus.textContent = "Download iniciado!";
+          } catch (err) {
+            downloadStatus.textContent = err.message || "Falha ao baixar.";
+            downloadStatus.classList.add("error");
+          } finally {
+            downloadBtn.disabled = false;
+          }
+        });
+
+        // Check if already authenticated
+        if (getToken()) {
+          hideModal();
+        } else {
+          showModal();
+        }
+      })();
+    </script>
+  </body>
+</html>

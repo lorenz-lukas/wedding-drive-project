@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Douglas & Juliana | Galeria Privada</title>
+    <meta
+      name="description"
+      content="Galeria privada com as fotos do casamento do Douglas e da Juliana."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Mulish:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="modal-shell" id="auth-modal-shell" aria-hidden="false">
+      <div class="modal-backdrop"></div>
+      <section
+        class="guest-modal auth-modal"
+        id="auth-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-modal-title"
+      >
+        <p class="modal-kicker">Area privada</p>
+        <h2 id="auth-modal-title">Acesso dos noivos</h2>
+        <p class="modal-copy">
+          Informe usuario e senha para visualizar a galeria privada do casamento.
+        </p>
+
+        <form id="auth-form" class="modal-form" novalidate>
+          <label for="authUsername">Usuario</label>
+          <input id="authUsername" name="authUsername" type="text" maxlength="80" required />
+
+          <label for="authPassword">Senha</label>
+          <input
+            id="authPassword"
+            name="authPassword"
+            type="password"
+            maxlength="120"
+            autocomplete="current-password"
+            required
+          />
+
+          <p id="auth-status" class="modal-status" role="status" aria-live="polite"></p>
+
+          <div class="modal-actions">
+            <button id="auth-submit" type="submit">Entrar</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="floral-layer" aria-hidden="true">
+      <div class="flower-spray flower-spray-top-left"></div>
+      <div class="flower-spray flower-spray-top-right"></div>
+      <div class="flower-spray flower-spray-bottom-left"></div>
+      <div class="flower-spray flower-spray-bottom-right"></div>
+    </div>
+
+    <div class="background-memory" aria-hidden="true">
+      <img src="/media/1.jpg" alt="" class="memory-photo memory-photo-1" />
+      <img src="/media/2.jpg" alt="" class="memory-photo memory-photo-2" />
+      <img src="/media/3.jpg" alt="" class="memory-photo memory-photo-3" />
+    </div>
+
+    <div class="bg-shape bg-shape-top"></div>
+    <div class="bg-shape bg-shape-bottom"></div>
+
+    <main class="page">
+      <section class="hero reveal">
+        <div class="hero-seal" aria-hidden="true">D&amp;J</div>
+      </section>
+
+      <section class="story reveal reveal-delay-1" aria-labelledby="story-title" id="story-section">
+        <div class="story-header story-header-left">
+          <p class="section-chip">Galeria dos convidados</p>
+        </div>
+
+        <div class="slideshow" id="slideshow" role="region" aria-label="Galeria privada do casamento">
+          <article class="slide is-active" data-slide>
+            <img src="/media/1.jpg" alt="Douglas e Juliana em um momento especial" />
+            <p>Enquanto a galeria privada carrega, revivemos alguns dos nossos momentos favoritos.</p>
+          </article>
+          <article class="slide" data-slide>
+            <img src="/media/2.jpg" alt="Douglas e Juliana sorrindo juntos" />
+            <p>Cada foto enviada ajuda a montar a memoria completa desse dia inesquecivel.</p>
+          </article>
+          <article class="slide" data-slide>
+            <img src="/media/3.jpg" alt="Douglas e Juliana celebrando" />
+            <p>Obrigado por registrar e compartilhar esse capitulo da nossa historia.</p>
+          </article>
+        </div>
+
+        <div class="slide-controls">
+          <div class="slide-dots" id="slide-dots" aria-label="Indicadores dos slides"></div>
+          <div class="gallery-playback-controls">
+            <button
+              id="gallery-toggle-button"
+              class="gallery-toggle-button"
+              type="button"
+              aria-pressed="true"
+            >
+              Pausar
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/script.js" defer></script>
+  </body>
+</html>

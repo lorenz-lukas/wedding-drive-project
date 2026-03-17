@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log*
+.git
+.github
+.vercel
+.env
+.env.*
+!.env.example
+README.md
+Dockerfile.dev
+compose.yaml
+*.pdf

@@ -1,0 +1,107 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION || 'southamerica-east1' }}
+  CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'casamento-dougrax-ju' }}
+  GCP_ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY || 'cloud-run-images' }}
+  IMAGE_NAME: casamento-dougrax-ju
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Validate deployment configuration
+        run: |
+          set -euo pipefail
+          test -n "$GCP_PROJECT_ID"
+          test -n "$GCP_REGION"
+          test -n "$CLOUD_RUN_SERVICE"
+          test -n "$GCP_ARTIFACT_REPOSITORY"
+
+      - name: Authorize Docker for Artifact Registry
+        run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
+
+      - name: Ensure Artifact Registry repository exists
+        run: |
+          set -euo pipefail
+          if ! gcloud artifacts repositories describe "$GCP_ARTIFACT_REPOSITORY" \
+            --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud artifacts repositories create "$GCP_ARTIFACT_REPOSITORY" \
+              --repository-format=docker \
+              --location "$GCP_REGION" \
+              --description "Docker images for Cloud Run deploys"
+          fi
+
+      - name: Build and push container image
+        run: |
+          set -euo pipefail
+          IMAGE_URI="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$GCP_ARTIFACT_REPOSITORY/$IMAGE_NAME:${GITHUB_SHA}"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+          docker build --tag "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+
+      - name: Generate Cloud Run environment file
+        run: |
+          cat > cloud-run-env.yaml <<EOF
+          NODE_ENV: "production"
+          GOOGLE_AUTH_MODE: "${{ vars.GOOGLE_AUTH_MODE }}"
+          GOOGLE_DRIVE_FOLDER_ID: "${{ vars.GOOGLE_DRIVE_FOLDER_ID }}"
+          GUEST_LIST_FILE_ID: "${{ vars.GUEST_LIST_FILE_ID }}"
+          GALLERY_USER: "${{ secrets.GALLERY_USER }}"
+          GALLERY_PASSWORD: "${{ secrets.GALLERY_PASSWORD }}"
+          AUTH_TOKEN_SECRET: "${{ secrets.AUTH_TOKEN_SECRET }}"
+          AUTH_TOKEN_TTL_SECONDS: "${{ vars.AUTH_TOKEN_TTL_SECONDS || '2592000' }}"
+          UPLOAD_MAX_FILES: "${{ vars.UPLOAD_MAX_FILES || '10' }}"
+          UPLOAD_MAX_SIZE_MB: "${{ vars.UPLOAD_MAX_SIZE_MB || '15' }}"
+          SLIDE_INTERVAL_MS: "${{ vars.SLIDE_INTERVAL_MS || '2000' }}"
+          FIRST_SLIDE_DELAY_MS: "${{ vars.FIRST_SLIDE_DELAY_MS || '5000' }}"
+          ALLOWED_ORIGINS: "${{ vars.ALLOWED_ORIGINS }}"
+          GOOGLE_OAUTH_CLIENT_ID: "${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}"
+          GOOGLE_OAUTH_CLIENT_SECRET: "${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}"
+          GOOGLE_OAUTH_REFRESH_TOKEN: "${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}"
+          GOOGLE_CLIENT_EMAIL: "${{ secrets.GOOGLE_CLIENT_EMAIL }}"
+          GOOGLE_PRIVATE_KEY_b64: "${{ secrets.GOOGLE_PRIVATE_KEY_B64 }}"
+          EOF
+
+      - name: Deploy service to Cloud Run
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$CLOUD_RUN_SERVICE" \
+            --image "$IMAGE_URI" \
+            --region "$GCP_REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 3000 \
+            --env-vars-file cloud-run-env.yaml
+
+      - name: Show deployed URL
+        run: |
+          set -euo pipefail
+          gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --region "$GCP_REGION" \
+            --format='value(status.url)'

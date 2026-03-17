@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Douglas & Juliana | Compartilhe Suas Fotos</title>
+    <meta
+      name="description"
+      content="Landing page oficial para os convidados compartilharem as fotos do casamento do Douglas e da Juliana."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Mulish:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="floral-layer" aria-hidden="true">
+      <div class="flower-spray flower-spray-top-left"></div>
+      <div class="flower-spray flower-spray-top-right"></div>
+      <div class="flower-spray flower-spray-bottom-left"></div>
+      <div class="flower-spray flower-spray-bottom-right"></div>
+    </div>
+
+    <div class="background-memory" aria-hidden="true">
+      <img src="/media/1.jpg" alt="" class="memory-photo memory-photo-1" />
+      <img src="/media/7.jpg" alt="" class="memory-photo memory-photo-2" />
+      <img src="/media/8.jpg" alt="" class="memory-photo memory-photo-3" />
+    </div>
+
+    <div class="bg-shape bg-shape-top"></div>
+    <div class="bg-shape bg-shape-bottom"></div>
+
+    <main class="page">
+      <section class="hero reveal">
+        <div class="hero-seal" aria-hidden="true">D&amp;J</div>
+        <p class="hero-overline">11 de Abril de 2026</p>
+        <p class="hero-kicker">Casamento</p>
+        <h1>Douglas <span>&</span> Juliana</h1>
+        <p class="hero-subtitle">Um dia inesquecível merece lembranças compartilhadas.</p>
+        <p class="hero-note">Role com calma, veja nossa história e depois envie suas fotos e vídeos.</p>
+      </section>
+
+      <section class="story reveal reveal-delay-1" aria-labelledby="story-title" id="story-section">
+        <div class="story-intro">
+          <p class="section-chip">Memorias</p>
+          <h2 id="story-title">Nossa Trajetoria</h2>
+          <p>
+            Do nosso primeiro encontro até o nosso casamento... agora chegou a hora de vocês
+            compartilharem esse dia maravilhoso com a gente, tirem muitas fotos e vídeos.
+          </p>
+        </div>
+
+        <div class="slideshow" id="slideshow" role="region" aria-label="Linha do tempo do casal">
+          <article class="slide is-active" data-slide>
+            <img src="/media/1.jpg" alt="Douglas e Juliana no inicio da historia" />
+            <p>Primeiros passos de uma história cheia de carinho.</p>
+          </article>
+          <article class="slide" data-slide>
+            <img src="/media/2.jpg" alt="Douglas e Juliana em um momento especial" />
+            <p>Cada fase trouxe ainda mais cumplicidade e amor.</p>
+          </article>
+          <article class="slide" data-slide>
+            <img src="/media/3.jpg" alt="Douglas e Juliana celebrando juntos" />
+            <p>Chegamos ao grande dia e voces fazem parte dessa memória.</p>
+          </article>
+          <article class="slide" data-slide>
+            <img src="/media/4.jpg" alt="Douglas e Juliana sorrindo perto do casamento" />
+            <p>Agora e hora de registrar cada sorriso e cada emoção.</p>
+          </article>
+          <article class="slide" data-slide>
+            <img src="/media/5.jpg" alt="Douglas e Juliana em clima de casamento" />
+            <p>Guardem esses momentos com a gente enviando suas fotos e videos.</p>
+          </article>
+        </div>
+
+        <div class="slide-controls">
+          <div class="slide-dots" id="slide-dots" aria-label="Indicadores dos slides"></div>
+          <button id="show-upload" type="button">Ir para o envio das fotos</button>
+        </div>
+      </section>
+
+      <section
+        class="card hidden-upload"
+        aria-labelledby="upload-title"
+        id="upload-section"
+        hidden
+      >
+        <p class="section-chip">Compartilhe seu olhar</p>
+        <h2 id="upload-title">Envie suas fotos</h2>
+        <p>
+          Se voce registrou momentos especiais da nossa celebração, envie aqui.
+          Todas as imagens vão para um álbum seguro no Google Drive.
+        </p>
+
+        <form id="upload-form" novalidate>
+          <input id="guestName" name="guestName" type="hidden" required />
+
+          <p class="guest-summary-label">Fotos do casamento</p>
+          <input
+            id="photos"
+            name="photos"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime"
+            multiple
+            required
+          />
+
+          <p class="hint" id="upload-hint">
+            Formatos aceitos: JPG, PNG, WEBP, HEIC, HEIF, MP4 e MOV. Ate
+            <strong id="max-files-label">10</strong> arquivos por envio, com ate
+            <strong id="max-size-label">15 MB</strong> por arquivo.
+          </p>
+
+          <button id="submit-button" type="submit">Enviar Fotos</button>
+          <p id="status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <footer class="reveal reveal-delay-2">
+        Feito com carinho para nossos convidados.
+      </footer>
+    </main>
+
+    <div class="modal-shell hidden" id="guest-modal-shell" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal></div>
+      <section
+        class="guest-modal"
+        id="guest-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="guest-modal-title"
+      >
+        <button class="modal-close" id="guest-modal-close" type="button" aria-label="Fechar">
+          x
+        </button>
+        <p class="modal-kicker">Confirmacao de convidado</p>
+        <h2 id="guest-modal-title">Antes do envio, confirme seu nome</h2>
+        <p class="modal-copy">
+          Digite nome e sobrenome para liberar o envio. A validacao nao diferencia maiusculas,
+          minusculas nem acentos.
+        </p>
+
+        <form id="guest-validation-form" class="modal-form" novalidate>
+          <label for="guestFirstName">Nome</label>
+          <input id="guestFirstName" name="guestFirstName" type="text" maxlength="60" required />
+
+          <label for="guestLastName">Sobrenome</label>
+          <input id="guestLastName" name="guestLastName" type="text" maxlength="80" required />
+
+          <p id="guest-validation-status" class="modal-status" role="status" aria-live="polite"></p>
+
+          <div class="modal-actions">
+            <button class="button-secondary" id="guest-validation-cancel" type="button">
+              Cancelar
+            </button>
+            <button id="guest-validation-submit" type="submit">Validar e enviar</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <script src="/script.js" defer></script>
+  </body>
+</html>
