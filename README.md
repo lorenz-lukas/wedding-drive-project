@@ -121,14 +121,26 @@ Tabela sugerida:
 
 Infra do deploy no GitHub Actions:
 
-| Variavel da pipeline | No GitHub Actions | Como obter |
-| --- | --- | --- |
-| `GCP_PROJECT_ID` | `Variable` | ID do projeto no Google Cloud. |
-| `GCP_REGION` | `Variable` | Regiao do Cloud Run. Ex.: `southamerica-east1`. |
-| `CLOUD_RUN_SERVICE` | `Variable` | Nome do servico no Cloud Run. |
-| `GCP_ARTIFACT_REPOSITORY` | `Variable` | Nome do repositorio Docker no Artifact Registry. |
-| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `Secret` | Provider do Workload Identity Federation no formato `projects/.../providers/...`. |
-| `GCP_SERVICE_ACCOUNT` | `Secret` | E-mail da service account usada pelo deploy. |
+| Variavel da pipeline | No GitHub Actions | Como obter | Link / onde achar |
+| --- | --- | --- | --- |
+| `GCP_PROJECT_ID` | `Variable` | No Google Cloud Console, selecione o projeto no topo da tela e copie o `Project ID`. | Google Cloud Console: <https://console.cloud.google.com/home/dashboard> |
+| `GCP_REGION` | `Variable` | Use a mesma regiao onde o servico sera criado no Cloud Run. Se o servico ja existir, abra `Cloud Run` e veja a coluna `Region`. Ex.: `southamerica-east1`. | Cloud Run setup: <https://cloud.google.com/run/docs/setup> |
+| `CLOUD_RUN_SERVICE` | `Variable` | Nome do servico no Cloud Run. Se ainda nao existir, voce escolhe esse nome no primeiro deploy. Se ja existir, abra `Cloud Run` e copie o nome do servico. | Cloud Run console: <https://console.cloud.google.com/run> |
+| `GCP_ARTIFACT_REPOSITORY` | `Variable` | Nome do repositorio Docker no Artifact Registry. Se ja existir, abra `Artifact Registry` e copie o nome. Se nao existir, defina um nome como `cloud-run-images`. | Artifact Registry console: <https://console.cloud.google.com/artifacts> |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `Secret` | No Google Cloud, crie ou abra o Workload Identity Provider usado pelo GitHub Actions e copie o resource name no formato `projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID`. | Workload Identity Federation: <https://cloud.google.com/iam/docs/workload-identity-federation> |
+| `GCP_SERVICE_ACCOUNT` | `Secret` | E-mail da service account usada pelo deploy. No Google Cloud Console: `IAM e administrador` > `Service Accounts` e copie o e-mail. | Service Accounts console: <https://console.cloud.google.com/iam-admin/serviceaccounts> |
+
+Passo a passo para cadastrar no GitHub:
+
+1. Abra o repositorio no GitHub.
+2. Va em `Settings` > `Secrets and variables` > `Actions`.
+3. Cadastre cada valor em `Variables` ou `Secrets`, conforme a tabela acima.
+4. Como esta workflow usa `environment: production`, revise tambem `Settings` > `Environments` > `production`.
+
+Links oficiais do GitHub:
+
+- Variables: <https://docs.github.com/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables>
+- Secrets: <https://docs.github.com/en/actions/how-tos/administering-github-actions/sharing-workflows-secrets-and-runners-with-your-organization>
 
 Importante:
 
