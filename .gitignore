@@ -3,3 +3,4 @@ node_modules/
 .vercel/
 *.pdf
 public/media/qrcode.png
+scripts/setup-github-wif.sh
