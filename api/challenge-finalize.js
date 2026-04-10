@@ -164,6 +164,11 @@ async function listChallengePhotoNames(drive, folderId, challengeNumber) {
 module.exports = async (req, res) => {
   const logger = createRequestLogger(req, "challenge-finalize");
   logger.info("Challenge finalize request received");
+  logger.info("Challenge finalize headers summary", {
+    contentType: req.headers["content-type"] || null,
+    contentLength: req.headers["content-length"] || null,
+    hasAuthorizationHeader: Boolean(req.headers.authorization)
+  });
 
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -193,6 +198,11 @@ module.exports = async (req, res) => {
     });
 
     const requestBody = await readJsonBody(req);
+    logger.info("Challenge finalize body parsed", {
+      keys: Object.keys(requestBody || {}),
+      finish: Boolean(requestBody?.finish),
+      winner: String(requestBody?.winner || "").slice(0, 120)
+    });
 
     const challenge = await challengeHandler.readState();
     const finish = Boolean(requestBody?.finish);
@@ -414,13 +424,16 @@ module.exports = async (req, res) => {
   } catch (error) {
     logger.error("Challenge finalize failed", {
       errorMessage: error?.message,
+      errorName: error?.name,
+      errorStack: error?.stack,
       errorCode: error?.code,
       errorStatus: error?.response?.status,
       errorData: error?.response?.data
     });
     return res.status(500).json({
       error: "Falha ao gerar arquivo CSV dos desafios.",
-      details: process.env.NODE_ENV === "development" ? error.message : undefined
+      details: error?.message,
+      requestId: logger.requestId
     });
   }
 };

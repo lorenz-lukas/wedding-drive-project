@@ -84,6 +84,18 @@ async function readJsonBody(req) {
   });
 }
 
+function summarizeBody(body) {
+  return {
+    keys: Object.keys(body || {}),
+    challengeTitle: String(body?.challengeTitle || "").slice(0, 120),
+    prize: String(body?.prize || "").slice(0, 120),
+    winner: String(body?.winner || "").slice(0, 120),
+    hasRankings: Array.isArray(body?.rankings),
+    rankingsCount: Array.isArray(body?.rankings) ? body.rankings.length : 0,
+    resetGame: Boolean(body?.resetGame)
+  };
+}
+
 function normalizeRankings(rankings) {
   if (!Array.isArray(rankings)) {
     return getDefaultState().rankings;
@@ -213,6 +225,11 @@ async function buildHistoryEntry(state) {
 const handler = async (req, res) => {
   const logger = createRequestLogger(req, "challenge");
   logger.info("Challenge request received");
+  logger.info("Challenge request headers summary", {
+    contentType: req.headers["content-type"] || null,
+    contentLength: req.headers["content-length"] || null,
+    hasAuthorizationHeader: Boolean(req.headers.authorization)
+  });
 
   const allowedOrigins = parseAllowedOrigins();
   if (!isOriginAllowed(req, allowedOrigins)) {
@@ -239,8 +256,18 @@ const handler = async (req, res) => {
 
   try {
     const body = await readJsonBody(req);
+    logger.info("Challenge body parsed", summarizeBody(body));
 
     const currentState = await readState();
+    logger.info("Challenge current state loaded", {
+      challengeId: currentState.id,
+      challengeNumber: currentState.challengeNumber,
+      winner: currentState.winner,
+      roundClosedAt: currentState.roundClosedAt,
+      historyCount: Array.isArray(currentState.history) ? currentState.history.length : 0,
+      rankingsCount: Array.isArray(currentState.rankings) ? currentState.rankings.length : 0,
+      challengeFolderName: currentState.challengeFolderName
+    });
     const nextChallengeTitle = hasOwn(body, "challengeTitle")
       ? normalizeText(body.challengeTitle, currentState.challengeTitle)
       : currentState.challengeTitle;
@@ -262,6 +289,14 @@ const handler = async (req, res) => {
     const contentChanged = challengeContentChanged(currentState, {
       challengeTitle: nextChallengeTitle,
       prize: nextPrize
+    });
+    logger.info("Challenge derived next values", {
+      nextChallengeTitle,
+      nextPrize,
+      nextWinner,
+      resetGame,
+      contentChanged,
+      nextRankingsCount: Array.isArray(nextRankings) ? nextRankings.length : 0
     });
 
     const nextState = {
@@ -312,6 +347,16 @@ const handler = async (req, res) => {
       }
     }
 
+    logger.info("Challenge next state prepared", {
+      challengeId: nextState.id,
+      challengeNumber: nextState.challengeNumber,
+      winner: nextState.winner,
+      roundClosedAt: nextState.roundClosedAt,
+      historyCount: Array.isArray(nextState.history) ? nextState.history.length : 0,
+      rankingsCount: Array.isArray(nextState.rankings) ? nextState.rankings.length : 0,
+      challengeFolderName: nextState.challengeFolderName,
+      updatedAt: nextState.updatedAt
+    });
     await writeState(nextState);
     logger.info("Challenge updated successfully", {
       challengeId: nextState.id,
@@ -321,11 +366,15 @@ const handler = async (req, res) => {
     return res.status(200).json({ ok: true, challenge: nextState });
   } catch (error) {
     logger.error("Challenge update failed", {
-      errorMessage: error?.message
+      errorMessage: error?.message,
+      errorName: error?.name,
+      errorStack: error?.stack,
+      requestBodyType: typeof req.body
     });
     return res.status(500).json({
       error: "Falha ao salvar desafio.",
-      details: process.env.NODE_ENV === "development" ? error.message : undefined
+      details: error?.message,
+      requestId: logger.requestId
     });
   }
 };

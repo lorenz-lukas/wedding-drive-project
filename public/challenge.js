@@ -99,14 +99,26 @@ async function challengeRequest(method, body) {
     body: body ? JSON.stringify(body) : undefined
   });
 
-  const payload = await response.json().catch(() => ({}));
+  const rawText = await response.text();
+  let payload = {};
+  try {
+    payload = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    payload = {};
+  }
+
   if (response.status === 401) {
     openAuthModal();
     throw new Error("Sessao expirada. Entre novamente.");
   }
 
   if (!response.ok) {
-    throw new Error(payload.error || "Falha ao salvar desafio.");
+    const statusLine = `HTTP ${response.status}.`;
+    const requestIdLine = payload.requestId ? ` Request ID: ${payload.requestId}.` : "";
+    const detail = [payload.error, payload.details, !payload.error && rawText ? rawText : ""]
+      .filter(Boolean)
+      .join(" ");
+    throw new Error((detail || "Falha ao salvar desafio.") + ` ${statusLine}${requestIdLine}`);
   }
 
   return payload.challenge;
@@ -130,15 +142,25 @@ async function challengeFinalizeRequest(body) {
     body: body ? JSON.stringify(body) : undefined
   });
 
-  const payload = await response.json().catch(() => ({}));
+  const rawText = await response.text();
+  let payload = {};
+  try {
+    payload = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    payload = {};
+  }
+
   if (response.status === 401) {
     openAuthModal();
     throw new Error("Sessao expirada. Entre novamente.");
   }
 
   if (!response.ok) {
-    const errorMessage = [payload.error, payload.details].filter(Boolean).join(" ");
-    throw new Error(errorMessage || "Falha ao gerar CSV dos desafios.");
+    const requestIdLine = payload.requestId ? ` Request ID: ${payload.requestId}.` : "";
+    const errorMessage = [payload.error, payload.details, !payload.error && rawText ? rawText : ""]
+      .filter(Boolean)
+      .join(" ");
+    throw new Error((errorMessage || "Falha ao gerar CSV dos desafios.") + requestIdLine);
   }
 
   return payload;

@@ -1727,11 +1727,11 @@ footer {
 
 @media (max-width: 720px) {
   body[data-challenge-page="upload"] .memory-photo-3 {
-    bottom: -14%;
+    bottom: -24%;
   }
 
   body[data-challenge-page="upload"] .memory-photo-4 {
-    top: 70%;
+    top: 82%;
   }
 
   .challenge-podium-overlay {
