@@ -1,6 +1,7 @@
 const AUTH_TOKEN_KEY = "casamento_auth_token";
 const CHALLENGE_NAME_CACHE_KEY = "casamento_desafio_nome";
 const CHALLENGE_SYNC_KEY = "casamento_challenge_sync";
+const CHALLENGE_STATE_CACHE_KEY = "casamento_challenge_state_cache";
 const DEFAULT_CHALLENGE_POLL_INTERVAL_MS = parseInt(window.CHALLENGE_POLL_INTERVAL_MS || "120000", 10);
 const UPLOAD_CHALLENGE_POLL_INTERVAL_MS = parseInt(window.CHALLENGE_UPLOAD_POLL_INTERVAL_MS || "180000", 10);
 
@@ -121,6 +122,7 @@ async function challengeRequest(method, body) {
     throw new Error((detail || "Falha ao salvar desafio.") + ` ${statusLine}${requestIdLine}`);
   }
 
+  writeCachedChallengeState(payload.challenge);
   return payload.challenge;
 }
 
@@ -174,6 +176,14 @@ async function fetchChallenge() {
     throw new Error(payload.error || "Falha ao carregar desafio.");
   }
 
+  if (isChallengeEffectivelyEmpty(payload.challenge)) {
+    const cachedChallenge = readCachedChallengeState();
+    if (cachedChallenge) {
+      return cachedChallenge;
+    }
+  }
+
+  writeCachedChallengeState(payload.challenge);
   return payload.challenge;
 }
 
@@ -224,6 +234,39 @@ function notifyChallengeUpdated(reason) {
 
   try {
     challengeSyncChannel?.postMessage(payload);
+  } catch {}
+}
+
+function isChallengeEffectivelyEmpty(challenge) {
+  if (!challenge || typeof challenge !== "object") {
+    return true;
+  }
+
+  const hasTitle = Boolean(String(challenge.challengeTitle || "").trim());
+  const hasPrize = Boolean(String(challenge.prize || "").trim());
+  const hasWinner = Boolean(String(challenge.winner || "").trim());
+  const hasHistory = Array.isArray(challenge.history) && challenge.history.length > 0;
+  const hasCelebration = Boolean(challenge.celebrationResult);
+
+  return !hasTitle && !hasPrize && !hasWinner && !hasHistory && !hasCelebration;
+}
+
+function readCachedChallengeState() {
+  try {
+    const raw = localStorage.getItem(CHALLENGE_STATE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedChallengeState(challenge) {
+  if (isChallengeEffectivelyEmpty(challenge)) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(CHALLENGE_STATE_CACHE_KEY, JSON.stringify(challenge));
   } catch {}
 }
 
