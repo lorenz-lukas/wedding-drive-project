@@ -731,7 +731,7 @@ async function initBoardPage() {
     uploadLink.href = uploadUrl;
   }
   if (qrImage) {
-    qrImage.src = "/media/qrcode.png";
+    qrImage.src = "/qrcode.png";
     qrImage.width = 490;
     qrImage.height = 490;
     qrImage.addEventListener("error", () => {
