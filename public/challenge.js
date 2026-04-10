@@ -931,6 +931,30 @@ function formatGuestNameForChallenge(value) {
     .toUpperCase();
 }
 
+function getFriendlyChallengeUploadError(response, payload) {
+  if (response.status === 405) {
+    return "Essa versao da pagina ficou desatualizada. Atualize a pagina e tente novamente.";
+  }
+
+  if (response.status === 409) {
+    return payload.error || "Voce ja enviou uma imagem nesta rodada.";
+  }
+
+  if (response.status === 403) {
+    return payload.error || "Seu nome nao foi encontrado na lista de convidados.";
+  }
+
+  if (response.status === 400) {
+    return payload.error || "Confira seu nome e a imagem escolhida e tente novamente.";
+  }
+
+  if (response.status >= 500) {
+    return "Nao conseguimos enviar sua imagem agora. Tente novamente em alguns instantes.";
+  }
+
+  return payload.error || "Falha ao enviar imagem.";
+}
+
 function initUploadPage() {
   const form = document.getElementById("challenge-upload-form");
   const nameInput = document.getElementById("challengeGuestName");
@@ -980,7 +1004,7 @@ function initUploadPage() {
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload.error || "Falha ao enviar imagem.");
+        throw new Error(getFriendlyChallengeUploadError(response, payload));
       }
 
       form.reset();
