@@ -464,6 +464,23 @@ async function initCreatePage() {
   let currentChallenge = null;
   let currentPhotos = [];
   let localWinnerSelection = "";
+  let localDraft = {
+    challengeTitle: "",
+    prize: ""
+  };
+  let isTitleDirty = false;
+  let isPrizeDirty = false;
+
+  function syncDraftFromInputs() {
+    localDraft.challengeTitle = titleInput?.value || "";
+    localDraft.prize = prizeInput?.value || "";
+  }
+
+  function resetDraftFlags() {
+    isTitleDirty = false;
+    isPrizeDirty = false;
+    syncDraftFromInputs();
+  }
 
   function applyChallengeToAdmin(challenge) {
     const isSameRound = currentChallenge && Number(currentChallenge.challengeNumber) === Number(challenge.challengeNumber);
@@ -474,10 +491,10 @@ async function initCreatePage() {
     if (roundNumberDisplay) {
       roundNumberDisplay.textContent = `- Rodada ${Number(challenge.challengeNumber || 1)}`;
     }
-    if (document.activeElement !== titleInput) {
+    if (!isTitleDirty && document.activeElement !== titleInput) {
       titleInput.value = challenge.challengeTitle || "";
     }
-    if (document.activeElement !== prizeInput) {
+    if (!isPrizeDirty && document.activeElement !== prizeInput) {
       prizeInput.value = challenge.prize || "";
     }
     if (saveWinnerButton) {
@@ -486,6 +503,7 @@ async function initCreatePage() {
     if (winnerInput) {
       winnerInput.value = localWinnerSelection || challenge.winner || "";
     }
+    syncDraftFromInputs();
     renderChallengeRankingTable(rankingTable, challenge, currentPhotos);
   }
 
@@ -503,6 +521,16 @@ async function initCreatePage() {
       localWinnerSelection = winnerInput.value.trim();
     });
   }
+
+  titleInput?.addEventListener("input", () => {
+    isTitleDirty = true;
+    syncDraftFromInputs();
+  });
+
+  prizeInput?.addEventListener("input", () => {
+    isPrizeDirty = true;
+    syncDraftFromInputs();
+  });
 
   if (getAuthToken()) {
     closeAuthModal();
@@ -528,6 +556,7 @@ async function initCreatePage() {
         prize: prizeInput.value.trim(),
         resetGame: Boolean(currentChallenge?.roundClosedAt)
       });
+      resetDraftFlags();
       applyChallengeToAdmin(challenge);
       await refreshAdminSubmissions();
       notifyChallengeUpdated("challenge-saved");
