@@ -1,4 +1,30 @@
 {
+  "rewrites": [
+    {
+      "source": "/challenges",
+      "destination": "/challenge-board.html"
+    },
+    {
+      "source": "/desafios",
+      "destination": "/challenge-board.html"
+    },
+    {
+      "source": "/challenges/create",
+      "destination": "/challenge-create.html"
+    },
+    {
+      "source": "/desafios/criar",
+      "destination": "/challenge-create.html"
+    },
+    {
+      "source": "/challenges/upload",
+      "destination": "/challenge-upload.html"
+    },
+    {
+      "source": "/desafios/upload",
+      "destination": "/challenge-upload.html"
+    }
+  ],
   "cleanUrls": true,
   "trailingSlash": false
 }
