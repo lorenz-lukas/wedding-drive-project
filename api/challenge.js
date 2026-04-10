@@ -1,18 +1,23 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { Readable } = require("node:stream");
 const { randomUUID } = require("node:crypto");
 const {
   applyOriginHeaders,
-  createDriveClient,
   ensureNamedFolder,
   isOriginAllowed,
-  parseAllowedOrigins
+  parseAllowedOrigins,
+  resolveDriveFileId,
+  runDriveOperation,
+  validateRequiredEnv
 } = require("../lib/_drive");
 const { requireAuth } = require("../lib/auth");
-const { createRequestLogger } = require("../lib/_logger");
+const { createLogger, createRequestLogger } = require("../lib/_logger");
 
-const CHALLENGE_STATE_FILE = path.join(os.tmpdir(), "wedding-challenge-state.json");
+const stateLogger = createLogger("challenge-state");
+const CHALLENGE_STATE_FILE = path.join(os.tmpdir(), "wedding-challenge-state.local.json");
+const CHALLENGE_STATE_FILE_NAME = "wedding-challenge-state.json";
 const CHALLENGE_FOLDER_NAME = "desafios";
 
 function getDefaultState() {
@@ -36,24 +41,49 @@ function getDefaultState() {
 }
 
 async function readState() {
+  if (canUseDriveState()) {
+    try {
+      const driveState = await readStateFromDrive();
+      if (driveState) {
+        stateLogger.info("Challenge state loaded from Drive", {
+          challengeId: driveState.id,
+          challengeNumber: driveState.challengeNumber
+        });
+        return mergeWithDefaultState(driveState);
+      }
+    } catch (error) {
+      stateLogger.error("Failed to load challenge state from Drive", {
+        errorMessage: error?.message,
+        errorStack: error?.stack
+      });
+    }
+  }
+
   try {
     const raw = await fs.promises.readFile(CHALLENGE_STATE_FILE, "utf8");
-    const parsed = JSON.parse(raw);
-    return {
-      ...getDefaultState(),
-      ...parsed,
-      rankings: Array.isArray(parsed.rankings) ? parsed.rankings : getDefaultState().rankings,
-      history: Array.isArray(parsed.history) ? parsed.history : [],
-      celebrationResult: parsed.celebrationResult && typeof parsed.celebrationResult === "object"
-        ? parsed.celebrationResult
-        : null
-    };
+    return mergeWithDefaultState(JSON.parse(raw));
   } catch {
     return getDefaultState();
   }
 }
 
 async function writeState(state) {
+  if (canUseDriveState()) {
+    try {
+      await writeStateToDrive(state);
+      stateLogger.info("Challenge state written to Drive", {
+        challengeId: state.id,
+        challengeNumber: state.challengeNumber
+      });
+      return;
+    } catch (error) {
+      stateLogger.error("Failed to write challenge state to Drive", {
+        errorMessage: error?.message,
+        errorStack: error?.stack
+      });
+    }
+  }
+
   await fs.promises.writeFile(CHALLENGE_STATE_FILE, JSON.stringify(state, null, 2), "utf8");
 }
 
@@ -94,6 +124,134 @@ function summarizeBody(body) {
     rankingsCount: Array.isArray(body?.rankings) ? body.rankings.length : 0,
     resetGame: Boolean(body?.resetGame)
   };
+}
+
+function mergeWithDefaultState(parsed) {
+  return {
+    ...getDefaultState(),
+    ...parsed,
+    rankings: Array.isArray(parsed?.rankings) ? parsed.rankings : getDefaultState().rankings,
+    history: Array.isArray(parsed?.history) ? parsed.history : [],
+    celebrationResult: parsed?.celebrationResult && typeof parsed.celebrationResult === "object"
+      ? parsed.celebrationResult
+      : null
+  };
+}
+
+function canUseDriveState() {
+  const authMode = String(process.env.GOOGLE_AUTH_MODE || "").trim().toLowerCase();
+  const hasOauthConfig = Boolean(
+    process.env.GOOGLE_OAUTH_CLIENT_ID &&
+      process.env.GOOGLE_OAUTH_CLIENT_SECRET &&
+      process.env.GOOGLE_OAUTH_REFRESH_TOKEN
+  );
+  const hasServiceAccountConfig = Boolean(
+    process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY_b64
+  );
+
+  if (!process.env.GOOGLE_DRIVE_FOLDER_ID || !process.env.GUEST_LIST_FILE_ID) {
+    return false;
+  }
+
+  if (authMode === "oauth") {
+    return hasOauthConfig || hasServiceAccountConfig;
+  }
+
+  if (authMode === "service_account") {
+    return hasServiceAccountConfig;
+  }
+
+  return hasOauthConfig || hasServiceAccountConfig;
+}
+
+async function streamToString(stream) {
+  const chunks = [];
+
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function findStateFile(drive, folderId) {
+  const response = await drive.files.list({
+    q: [
+      `'${folderId}' in parents`,
+      `trashed = false`,
+      `name = '${CHALLENGE_STATE_FILE_NAME}'`
+    ].join(" and "),
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+    fields: "files(id,name,modifiedTime)",
+    orderBy: "modifiedTime desc",
+    pageSize: 1
+  });
+
+  return response.data.files?.[0] || null;
+}
+
+async function readStateFromDrive() {
+  validateRequiredEnv();
+  const rootFolderId = resolveDriveFileId(process.env.GOOGLE_DRIVE_FOLDER_ID);
+
+  return runDriveOperation(async (drive) => {
+    const stateFile = await findStateFile(drive, rootFolderId);
+    if (!stateFile?.id) {
+      return null;
+    }
+
+    const downloaded = await drive.files.get(
+      {
+        fileId: stateFile.id,
+        alt: "media",
+        supportsAllDrives: true
+      },
+      {
+        responseType: "stream"
+      }
+    );
+
+    const raw = await streamToString(downloaded.data);
+    return raw ? JSON.parse(raw) : null;
+  }, { operationName: "challenge-state-read" });
+}
+
+async function writeStateToDrive(state) {
+  validateRequiredEnv();
+  const rootFolderId = resolveDriveFileId(process.env.GOOGLE_DRIVE_FOLDER_ID);
+  const serialized = JSON.stringify(state, null, 2);
+
+  return runDriveOperation(async (drive) => {
+    const stateFile = await findStateFile(drive, rootFolderId);
+    const media = {
+      mimeType: "application/json; charset=utf-8",
+      body: Readable.from([serialized], { encoding: "utf8" })
+    };
+
+    if (stateFile?.id) {
+      await drive.files.update({
+        fileId: stateFile.id,
+        supportsAllDrives: true,
+        requestBody: {
+          name: CHALLENGE_STATE_FILE_NAME
+        },
+        media,
+        fields: "id,name"
+      });
+      return;
+    }
+
+    await drive.files.create({
+      supportsAllDrives: true,
+      requestBody: {
+        name: CHALLENGE_STATE_FILE_NAME,
+        parents: [rootFolderId]
+      },
+      media,
+      fields: "id,name"
+    });
+  }, { operationName: "challenge-state-write" });
 }
 
 function normalizeRankings(rankings) {
@@ -173,39 +331,40 @@ function createChallengeFolderName(title) {
 }
 
 async function listRoundPhotoNames(challengeNumber, folderName) {
-  const drive = createDriveClient();
-  const challengeFolder = await ensureNamedFolder(
-    process.env.GOOGLE_DRIVE_FOLDER_ID,
-    folderName || CHALLENGE_FOLDER_NAME
-  );
-  const marker = `_${challengeNumber}_desafio_`;
-  let pageToken;
-  const photoNames = [];
+  return runDriveOperation(async (drive) => {
+    const challengeFolder = await ensureNamedFolder(
+      process.env.GOOGLE_DRIVE_FOLDER_ID,
+      folderName || CHALLENGE_FOLDER_NAME
+    );
+    const marker = `_${challengeNumber}_desafio_`;
+    let pageToken;
+    const photoNames = [];
 
-  do {
-    const response = await drive.files.list({
-      q: [`'${challengeFolder.id}' in parents`, `trashed = false`].join(" and "),
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-      fields: "nextPageToken, files(name,mimeType)",
-      pageToken,
-      pageSize: 200,
-      orderBy: "createdTime desc"
-    });
+    do {
+      const response = await drive.files.list({
+        q: [`'${challengeFolder.id}' in parents`, `trashed = false`].join(" and "),
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        fields: "nextPageToken, files(name,mimeType)",
+        pageToken,
+        pageSize: 200,
+        orderBy: "createdTime desc"
+      });
 
-    for (const file of response.data.files || []) {
-      if (file.mimeType === "application/vnd.google-apps.folder") {
-        continue;
+      for (const file of response.data.files || []) {
+        if (file.mimeType === "application/vnd.google-apps.folder") {
+          continue;
+        }
+        if (String(file.name || "").includes(marker)) {
+          photoNames.push(file.name);
+        }
       }
-      if (String(file.name || "").includes(marker)) {
-        photoNames.push(file.name);
-      }
-    }
 
-    pageToken = response.data.nextPageToken;
-  } while (pageToken);
+      pageToken = response.data.nextPageToken;
+    } while (pageToken);
 
-  return photoNames;
+    return photoNames;
+  }, { operationName: "challenge-state-list-round-photos" });
 }
 
 async function buildHistoryEntry(state) {
