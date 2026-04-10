@@ -551,12 +551,21 @@ async function initCreatePage() {
   }
 
   async function refreshAdminSubmissions() {
-    const payload = await fetchChallengeSubmissions();
-    currentPhotos = payload.photos || [];
-    if (currentChallenge) {
-      renderChallengeRankingTable(rankingTable, currentChallenge, currentPhotos);
+    try {
+      const payload = await fetchChallengeSubmissions();
+      currentPhotos = payload.photos || [];
+      if (currentChallenge) {
+        renderChallengeRankingTable(rankingTable, currentChallenge, currentPhotos);
+      }
+      updateWinnerOptions(winnerInput, currentPhotos, currentChallenge);
+    } catch (error) {
+      currentPhotos = [];
+      if (currentChallenge) {
+        renderChallengeRankingTable(rankingTable, currentChallenge, currentPhotos);
+      }
+      updateWinnerOptions(winnerInput, currentPhotos, currentChallenge);
+      setStatus(adminStatus, error.message || "Falha ao carregar imagens do desafio.", "error");
     }
-    updateWinnerOptions(winnerInput, currentPhotos, currentChallenge);
   }
 
   if (winnerInput) {
@@ -585,6 +594,7 @@ async function initCreatePage() {
     const challenge = await fetchChallenge();
     applyChallengeToAdmin(challenge);
     await refreshAdminSubmissions();
+    setStatus(status, "");
   } catch (error) {
     setStatus(status, error.message || "Nao foi possivel carregar o desafio.", "error");
   }
@@ -626,6 +636,7 @@ async function initCreatePage() {
       const challenge = await fetchChallenge();
       applyChallengeToAdmin(challenge);
       await refreshAdminSubmissions();
+      setStatus(status, "");
       notifyChallengeUpdated("challenge-finished");
       setStatus(
         adminStatus,
@@ -657,6 +668,7 @@ async function initCreatePage() {
       const challenge = await fetchChallenge();
       applyChallengeToAdmin(challenge);
       await refreshAdminSubmissions();
+      setStatus(status, "");
       notifyChallengeUpdated("challenge-next-round");
       setStatus(
         adminStatus,
@@ -961,7 +973,7 @@ function initUploadPage() {
       formData.append("guestName", guestName);
       formData.append("photo", file);
 
-      const response = await fetch("/api/challenge-submissions", {
+      const response = await fetch("/api/challenge-upload", {
         method: "POST",
         body: formData
       });
