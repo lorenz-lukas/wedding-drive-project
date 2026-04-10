@@ -1,5 +1,5 @@
-const { createSessionToken, validateCredentials } = require("./auth");
-const { createRequestLogger } = require("./_logger");
+const { createSessionToken, validateCredentials } = require("../lib/auth");
+const { createRequestLogger } = require("../lib/_logger");
 
 async function readJsonBody(req) {
   const chunks = [];

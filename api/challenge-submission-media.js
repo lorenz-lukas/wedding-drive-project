@@ -4,8 +4,8 @@ const {
   parseAllowedOrigins,
   resolveDriveFileId,
   runDriveOperation
-} = require("./_drive");
-const { createRequestLogger } = require("./_logger");
+} = require("../lib/_drive");
+const { createRequestLogger } = require("../lib/_logger");
 
 function getFileIdFromRequest(req) {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);

@@ -2,7 +2,7 @@ const DEFAULT_MAX_FILES = 10;
 const DEFAULT_MAX_SIZE_MB = 15;
 const DEFAULT_SLIDE_INTERVAL_MS = 2000;
 const DEFAULT_FIRST_SLIDE_DELAY_MS = 5000;
-const { createRequestLogger } = require("./_logger");
+const { createRequestLogger } = require("../lib/_logger");
 
 module.exports = async (req, res) => {
   const logger = createRequestLogger(req, "config");

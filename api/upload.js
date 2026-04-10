@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { formidable } = require("formidable");
 const { google } = require("googleapis");
-const { createRequestLogger } = require("./_logger");
+const { createRequestLogger } = require("../lib/_logger");
 const {
   applyOriginHeaders,
   createAuthClient,
@@ -12,7 +12,7 @@ const {
   parseAllowedOrigins,
   sanitizeGuestName,
   validateRequiredEnv
-} = require("./_drive");
+} = require("../lib/_drive");
 
 const DEFAULT_MAX_FILES = 10;
 const DEFAULT_MAX_FILE_SIZE_MB = 15;

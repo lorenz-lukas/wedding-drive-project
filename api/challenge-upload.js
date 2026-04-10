@@ -3,7 +3,7 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { formidable } = require("formidable");
 const { google } = require("googleapis");
-const { createRequestLogger } = require("./_logger");
+const { createRequestLogger } = require("../lib/_logger");
 const {
   applyOriginHeaders,
   createAuthClient,
@@ -13,7 +13,7 @@ const {
   parseAllowedOrigins,
   sanitizeGuestName,
   validateRequiredEnv
-} = require("./_drive");
+} = require("../lib/_drive");
 const challengeHandler = require("./challenge");
 
 const MAX_FILE_SIZE_MB = 15;

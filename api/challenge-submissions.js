@@ -4,9 +4,9 @@ const {
   isOriginAllowed,
   parseAllowedOrigins,
   runDriveOperation
-} = require("./_drive");
+} = require("../lib/_drive");
 const challengeHandler = require("./challenge");
-const { createRequestLogger } = require("./_logger");
+const { createRequestLogger } = require("../lib/_logger");
 
 const CHALLENGE_FOLDER_NAME = "desafios";
 

@@ -4,8 +4,8 @@ const {
   isOriginAllowed,
   parseAllowedOrigins,
   sanitizeGuestName
-} = require("./_drive");
-const { createRequestLogger } = require("./_logger");
+} = require("../lib/_drive");
+const { createRequestLogger } = require("../lib/_logger");
 
 async function readJsonBody(req) {
   const chunks = [];

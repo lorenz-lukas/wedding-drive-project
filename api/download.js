@@ -5,9 +5,9 @@ const {
   isOriginAllowed,
   applyOriginHeaders,
   resolveDriveFileId
-} = require("./_drive");
-const { requireAuth } = require("./auth");
-const { createRequestLogger } = require("./_logger");
+} = require("../lib/_drive");
+const { requireAuth } = require("../lib/auth");
+const { createRequestLogger } = require("../lib/_logger");
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const IMAGE_MIME_TYPES = new Set([

@@ -8,9 +8,9 @@ const {
   ensureNamedFolder,
   isOriginAllowed,
   parseAllowedOrigins
-} = require("./_drive");
-const { requireAuth } = require("./auth");
-const { createRequestLogger } = require("./_logger");
+} = require("../lib/_drive");
+const { requireAuth } = require("../lib/auth");
+const { createRequestLogger } = require("../lib/_logger");
 
 const CHALLENGE_STATE_FILE = path.join(os.tmpdir(), "wedding-challenge-state.json");
 const CHALLENGE_FOLDER_NAME = "desafios";

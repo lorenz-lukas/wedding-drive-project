@@ -7,10 +7,10 @@ const {
   resolveDriveFileId,
   runDriveOperation,
   validateRequiredEnv
-} = require("./_drive");
+} = require("../lib/_drive");
 const challengeHandler = require("./challenge");
-const { requireAuth } = require("./auth");
-const { createRequestLogger } = require("./_logger");
+const { requireAuth } = require("../lib/auth");
+const { createRequestLogger } = require("../lib/_logger");
 
 const CHALLENGE_FOLDER_NAME = "desafios";
 

@@ -4,9 +4,9 @@ const {
   isOriginAllowed,
   applyOriginHeaders,
   resolveDriveFileId
-} = require("./_drive");
-const { requireAuth } = require("./auth");
-const { createRequestLogger } = require("./_logger");
+} = require("../lib/_drive");
+const { requireAuth } = require("../lib/auth");
+const { createRequestLogger } = require("../lib/_logger");
 
 function getFileIdFromRequest(req) {
   if (req.query && req.query.fileId) {
