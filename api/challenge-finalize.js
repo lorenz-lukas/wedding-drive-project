@@ -106,6 +106,29 @@ function buildCsvContent(challenge, activePhotoNames) {
   return `${rows.map((row) => row.map(escapeCsv).join(",")).join("\n")}\n`;
 }
 
+async function readJsonBody(req) {
+  if (req.body && typeof req.body === "object") {
+    return req.body;
+  }
+
+  if (typeof req.body === "string") {
+    return req.body ? JSON.parse(req.body) : {};
+  }
+
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 async function listChallengePhotoNames(drive, folderId, challengeNumber) {
   let pageToken;
   const fileNames = [];
@@ -169,18 +192,7 @@ module.exports = async (req, res) => {
       hasGuestListFileId: Boolean(process.env.GUEST_LIST_FILE_ID)
     });
 
-    const requestBody = await new Promise((resolve, reject) => {
-      const chunks = [];
-      req.on("data", (chunk) => chunks.push(chunk));
-      req.on("end", () => {
-        try {
-          resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
-        } catch (error) {
-          reject(error);
-        }
-      });
-      req.on("error", reject);
-    });
+    const requestBody = await readJsonBody(req);
 
     const challenge = await challengeHandler.readState();
     const finish = Boolean(requestBody?.finish);

@@ -603,9 +603,11 @@ async function initBoardPage() {
   const podiumOverlayShell = document.getElementById("challenge-podium-overlay-shell");
   const podiumOverlayStage = document.getElementById("challenge-podium-overlay-stage");
   const podiumOverlayCopy = document.getElementById("challenge-podium-overlay-copy");
+  const confettiLayer = document.getElementById("challenge-confetti-layer");
   let currentUpdatedAt = "";
   let currentChallenge = null;
   let currentPhotos = [];
+  let lastCelebrationKey = "";
 
   if (getAuthToken()) {
     closeAuthModal();
@@ -633,6 +635,26 @@ async function initBoardPage() {
     return challenge?.celebrationResult || null;
   }
 
+  function launchConfetti() {
+    if (!confettiLayer) return;
+
+    confettiLayer.innerHTML = "";
+    const colors = ["#f2c55f", "#ab93c8", "#7d679f", "#f08c6c", "#7fb069", "#ffffff"];
+
+    for (let index = 0; index < 34; index += 1) {
+      const piece = document.createElement("span");
+      piece.className = "challenge-confetti-piece";
+      piece.style.left = `${Math.random() * 100}%`;
+      piece.style.background = colors[index % colors.length];
+      piece.style.animationDelay = `${Math.random() * 0.45}s`;
+      piece.style.animationDuration = `${3.2 + Math.random() * 1.6}s`;
+      piece.style.transform = `translate3d(0, -12vh, 0) rotate(${Math.random() * 360}deg)`;
+      piece.style.opacity = String(0.78 + Math.random() * 0.22);
+      piece.style.setProperty("--confetti-drift", `${-90 + Math.random() * 180}px`);
+      confettiLayer.appendChild(piece);
+    }
+  }
+
   function renderCelebrationOverlay(challenge) {
     if (!podiumOverlayShell || !podiumOverlayStage || !podiumOverlayCopy) return;
 
@@ -641,6 +663,10 @@ async function initBoardPage() {
       podiumOverlayShell.classList.add("hidden");
       podiumOverlayShell.setAttribute("aria-hidden", "true");
       podiumOverlayStage.innerHTML = "";
+      if (confettiLayer) {
+        confettiLayer.innerHTML = "";
+      }
+      lastCelebrationKey = "";
       return;
     }
 
@@ -691,6 +717,11 @@ async function initBoardPage() {
     `;
     podiumOverlayShell.classList.remove("hidden");
     podiumOverlayShell.setAttribute("aria-hidden", "false");
+    const celebrationKey = `${latestRound.id || latestRound.challengeNumber || "round"}-${winnerName}`;
+    if (celebrationKey !== lastCelebrationKey) {
+      launchConfetti();
+      lastCelebrationKey = celebrationKey;
+    }
   }
 
   function applyChallengeToBoard(challenge) {

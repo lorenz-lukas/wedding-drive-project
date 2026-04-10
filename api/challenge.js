@@ -61,6 +61,29 @@ function normalizeText(value, fallback = "") {
   return String(value || "").trim() || fallback;
 }
 
+async function readJsonBody(req) {
+  if (req.body && typeof req.body === "object") {
+    return req.body;
+  }
+
+  if (typeof req.body === "string") {
+    return req.body ? JSON.parse(req.body) : {};
+  }
+
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 function normalizeRankings(rankings) {
   if (!Array.isArray(rankings)) {
     return getDefaultState().rankings;
@@ -215,18 +238,7 @@ const handler = async (req, res) => {
   }
 
   try {
-    const body = await new Promise((resolve, reject) => {
-      const chunks = [];
-      req.on("data", (chunk) => chunks.push(chunk));
-      req.on("end", () => {
-        try {
-          resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
-        } catch (error) {
-          reject(error);
-        }
-      });
-      req.on("error", reject);
-    });
+    const body = await readJsonBody(req);
 
     const currentState = await readState();
     const nextChallengeTitle = hasOwn(body, "challengeTitle")
