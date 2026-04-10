@@ -1693,6 +1693,14 @@ footer {
 }
 
 @media (max-width: 720px) {
+  body[data-challenge-page="upload"] .memory-photo-3 {
+    bottom: -8%;
+  }
+
+  body[data-challenge-page="upload"] .memory-photo-4 {
+    top: 62%;
+  }
+
   .challenge-podium-overlay {
     padding: 1rem 0.9rem 1.2rem;
   }

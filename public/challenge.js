@@ -731,13 +731,9 @@ async function initBoardPage() {
     uploadLink.href = uploadUrl;
   }
   if (qrImage) {
-    const qrServiceUrl = new URL("https://api.qrserver.com/v1/create-qr-code/");
-    qrServiceUrl.searchParams.set("size", "490x490");
-    qrServiceUrl.searchParams.set("data", uploadUrl);
-    qrImage.src = qrServiceUrl.toString();
+    qrImage.src = "/media/qrcode.png";
     qrImage.width = 490;
     qrImage.height = 490;
-    qrImage.referrerPolicy = "no-referrer";
     qrImage.addEventListener("error", () => {
       qrImage.alt = `QR indisponivel. Acesse ${uploadUrl}`;
       qrImage.removeAttribute("src");
