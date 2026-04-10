@@ -37,7 +37,7 @@ def generate_qrcode():
     """Generate QR code with D&J logo in center."""
 
     # Configuration
-    qr_url = "https://casamento-douglas-juliana.vercel.app/challenges/upload"
+    qr_url = "https://casamento-douglas-juliana.vercel.app/challenge-upload"
     output_dir = Path(__file__).parent.parent / "public" / "media"
     output_path = output_dir / "qrcode.png"
 

@@ -93,7 +93,7 @@ async function challengeRequest(method, body) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch("/api/challenges", {
+  const response = await fetch("/api/challenge", {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined
@@ -124,7 +124,7 @@ async function challengeFinalizeRequest(body) {
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch("/api/challenges/finalize", {
+  const response = await fetch("/api/challenge-finalize", {
     method: "POST",
     headers,
     body: body ? JSON.stringify(body) : undefined
@@ -145,7 +145,7 @@ async function challengeFinalizeRequest(body) {
 }
 
 async function fetchChallenge() {
-  const response = await fetch("/api/challenges", { cache: "no-store" });
+  const response = await fetch("/api/challenge", { cache: "no-store" });
   const payload = await response.json();
 
   if (!response.ok) {
@@ -726,14 +726,22 @@ async function initBoardPage() {
     }
   }
 
-  const uploadUrl = `${window.location.origin}/challenges/upload`;
+  const uploadUrl = `${window.location.origin}/challenge-upload`;
   if (uploadLink) {
     uploadLink.href = uploadUrl;
   }
   if (qrImage) {
-    qrImage.src = "/media/qrcode.png";
+    const qrServiceUrl = new URL("https://api.qrserver.com/v1/create-qr-code/");
+    qrServiceUrl.searchParams.set("size", "490x490");
+    qrServiceUrl.searchParams.set("data", uploadUrl);
+    qrImage.src = qrServiceUrl.toString();
     qrImage.width = 490;
     qrImage.height = 490;
+    qrImage.referrerPolicy = "no-referrer";
+    qrImage.addEventListener("error", () => {
+      qrImage.alt = `QR indisponivel. Acesse ${uploadUrl}`;
+      qrImage.removeAttribute("src");
+    }, { once: true });
   }
 
   openGalleryButton?.addEventListener("click", openGalleryModal);
