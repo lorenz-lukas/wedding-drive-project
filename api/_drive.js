@@ -89,17 +89,39 @@ function getDriveAuthMode() {
     .trim()
     .toLowerCase();
 
+  if (forcedMode === "oauth" && !hasOauthConfig() && hasServiceAccountConfig()) {
+    logger.warn("OAuth mode requested without complete OAuth credentials; falling back to service_account");
+    return "service_account";
+  }
+
   if (forcedMode === "oauth" || forcedMode === "service_account") {
     return forcedMode;
   }
 
-  const hasOauthConfig = Boolean(
+  return hasOauthConfig() ? "oauth" : "service_account";
+}
+
+function hasOauthConfig() {
+  return Boolean(
     process.env.GOOGLE_OAUTH_CLIENT_ID &&
       process.env.GOOGLE_OAUTH_CLIENT_SECRET &&
       process.env.GOOGLE_OAUTH_REFRESH_TOKEN
   );
+}
 
-  return hasOauthConfig ? "oauth" : "service_account";
+function hasServiceAccountConfig() {
+  return Boolean(process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY_b64);
+}
+
+function isInvalidGrantError(error) {
+  const details = String(
+    error?.response?.data?.error ||
+      error?.response?.data?.error_description ||
+      error?.message ||
+      ""
+  ).toLowerCase();
+
+  return details.includes("invalid_grant");
 }
 
 function normalizeGuestName(input) {
@@ -131,8 +153,8 @@ function formatGuestFolderName(input) {
     .toUpperCase();
 }
 
-function validateRequiredEnv() {
-  const authMode = getDriveAuthMode();
+function validateRequiredEnv(authModeOverride) {
+  const authMode = authModeOverride || getDriveAuthMode();
   const required = ["GOOGLE_DRIVE_FOLDER_ID", "GUEST_LIST_FILE_ID"];
 
   if (authMode === "oauth") {
@@ -161,9 +183,9 @@ function validateRequiredEnv() {
   }
 }
 
-function createAuthClient() {
-  validateRequiredEnv();
-  const authMode = getDriveAuthMode();
+function createAuthClient(authModeOverride) {
+  const authMode = authModeOverride || getDriveAuthMode();
+  validateRequiredEnv(authMode);
 
   if (authMode === "oauth") {
     logger.info("Creating Google auth client", {
@@ -193,8 +215,58 @@ function createAuthClient() {
   });
 }
 
-function createDriveClient() {
-  return google.drive({ version: "v3", auth: createAuthClient() });
+function createDriveClient(authModeOverride) {
+  return google.drive({ version: "v3", auth: createAuthClient(authModeOverride) });
+}
+
+async function runDriveOperation(operation, options = {}) {
+  const {
+    fallbackToServiceAccountOnInvalidGrant = true,
+    operationName = "drive-operation"
+  } = options;
+
+  const primaryAuthMode = getDriveAuthMode();
+  logger.info("Starting Drive operation", {
+    operationName,
+    primaryAuthMode,
+    fallbackToServiceAccountOnInvalidGrant
+  });
+
+  try {
+    const result = await operation(createDriveClient(primaryAuthMode), primaryAuthMode);
+    logger.info("Drive operation completed successfully", {
+      operationName,
+      authMode: primaryAuthMode
+    });
+    return result;
+  } catch (error) {
+    logger.error("Drive operation failed", {
+      operationName,
+      authMode: primaryAuthMode,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+      errorStatus: error?.response?.status,
+      errorData: error?.response?.data
+    });
+    if (
+      fallbackToServiceAccountOnInvalidGrant &&
+      primaryAuthMode === "oauth" &&
+      hasServiceAccountConfig() &&
+      isInvalidGrantError(error)
+    ) {
+      logger.warn("Drive operation hit invalid_grant; retrying with service_account", {
+        operationName
+      });
+      const fallbackResult = await operation(createDriveClient("service_account"), "service_account");
+      logger.info("Drive operation completed successfully after fallback", {
+        operationName,
+        authMode: "service_account"
+      });
+      return fallbackResult;
+    }
+
+    throw error;
+  }
 }
 
 async function streamToString(stream) {
@@ -268,16 +340,34 @@ async function downloadGuestListContentAsText(drive, fileId) {
 }
 
 async function fetchGuestListFromDrive() {
-  const drive = createDriveClient();
   const guestListFileId = resolveDriveFileId(process.env.GUEST_LIST_FILE_ID);
   let content;
 
   logger.info("Fetching guest list from Drive", { guestListFileId });
 
   try {
+    const drive = createDriveClient();
     content = await downloadGuestListContentAsText(drive, guestListFileId);
   } catch (error) {
+    if (isInvalidGrantError(error) && hasServiceAccountConfig()) {
+      logger.warn("OAuth grant became invalid; retrying guest list fetch with service_account", {
+        guestListFileId
+      });
+      try {
+        const fallbackDrive = createDriveClient("service_account");
+        content = await downloadGuestListContentAsText(fallbackDrive, guestListFileId);
+      } catch (fallbackError) {
+        logger.error("Guest list fetch fallback with service_account failed", {
+          guestListFileId,
+          errorMessage: fallbackError?.message,
+          errorCode: fallbackError?.code
+        });
+        throw fallbackError;
+      }
+    }
+
     if (error && isFileNotDownloadableError(error)) {
+      const drive = createDriveClient();
       logger.warn("Guest list is not directly downloadable, attempting export fallback", {
         guestListFileId
       });
@@ -374,30 +464,45 @@ async function ensureGuestFolder(guestName) {
     throw new Error("Nome de pasta do convidado invalido.");
   }
 
-  if (guestFolderCache.has(folderName)) {
-    logger.info("Guest folder served from cache", {
-      guestName,
-      folderName,
-      folderId: guestFolderCache.get(folderName)
+  return ensureNamedFolder(process.env.GOOGLE_DRIVE_FOLDER_ID, folderName, guestFolderCache);
+}
+
+async function ensureNamedFolder(parentId, folderName, cache = null) {
+  const safeParentId = resolveDriveFileId(parentId);
+  const safeFolderName = sanitizeGuestName(folderName);
+
+  if (!safeParentId) {
+    logger.error("Parent folder id is invalid", { parentId });
+    throw new Error("Pasta pai invalida.");
+  }
+
+  if (!safeFolderName) {
+    logger.error("Named folder is invalid", { folderName });
+    throw new Error("Nome de pasta invalido.");
+  }
+
+  if (cache && cache.has(safeFolderName)) {
+    logger.info("Named folder served from cache", {
+      folderName: safeFolderName,
+      folderId: cache.get(safeFolderName)
     });
     return {
-      id: guestFolderCache.get(folderName),
-      name: folderName,
+      id: cache.get(safeFolderName),
+      name: safeFolderName,
       created: false
     };
   }
 
   const drive = createDriveClient();
-  const parentId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-  const escapedFolderName = folderName.replace(/'/g, "\\'");
+  const escapedFolderName = safeFolderName.replace(/'/g, "\\'");
 
-  logger.info("Resolving guest folder on Drive", { guestName, folderName, parentId });
+  logger.info("Resolving named folder on Drive", { folderName: safeFolderName, parentId: safeParentId });
 
   const lookup = await drive.files.list({
     q: [
       `mimeType = 'application/vnd.google-apps.folder'`,
       `name = '${escapedFolderName}'`,
-      `'${parentId}' in parents`,
+      `'${safeParentId}' in parents`,
       `trashed = false`
     ].join(" and "),
     supportsAllDrives: true,
@@ -408,10 +513,11 @@ async function ensureGuestFolder(guestName) {
 
   const existingFolder = lookup.data.files && lookup.data.files[0];
   if (existingFolder) {
-    guestFolderCache.set(folderName, existingFolder.id);
-    logger.info("Existing guest folder found", {
-      guestName,
-      folderName,
+    if (cache) {
+      cache.set(safeFolderName, existingFolder.id);
+    }
+    logger.info("Existing named folder found", {
+      folderName: safeFolderName,
       folderId: existingFolder.id
     });
     return {
@@ -423,17 +529,18 @@ async function ensureGuestFolder(guestName) {
   const createdFolder = await drive.files.create({
     supportsAllDrives: true,
     requestBody: {
-      name: folderName,
+      name: safeFolderName,
       mimeType: "application/vnd.google-apps.folder",
-      parents: [parentId]
+      parents: [safeParentId]
     },
     fields: "id,name"
   });
 
-  guestFolderCache.set(folderName, createdFolder.data.id);
-  logger.info("Guest folder created", {
-    guestName,
-    folderName,
+  if (cache) {
+    cache.set(safeFolderName, createdFolder.data.id);
+  }
+  logger.info("Named folder created", {
+    folderName: safeFolderName,
     folderId: createdFolder.data.id
   });
   return {
@@ -446,7 +553,9 @@ module.exports = {
   applyOriginHeaders,
   createAuthClient,
   createDriveClient,
+  runDriveOperation,
   ensureGuestFolder,
+  ensureNamedFolder,
   formatGuestFolderName,
   getDriveAuthMode,
   isGuestOnList,

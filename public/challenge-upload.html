@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Douglas & Juliana | Enviar Desafio</title>
+    <meta
+      name="description"
+      content="Envie sua imagem do desafio do casamento e identifique seu nome."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Mulish:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-challenge-page="upload">
+    <div class="floral-layer" aria-hidden="true">
+      <div class="flower-spray flower-spray-top-left"></div>
+      <div class="flower-spray flower-spray-top-right"></div>
+      <div class="flower-spray flower-spray-bottom-left"></div>
+      <div class="flower-spray flower-spray-bottom-right"></div>
+    </div>
+
+    <div class="background-memory" aria-hidden="true">
+      <img src="/media/douglas1.jpeg" alt="" class="memory-photo memory-photo-1" />
+      <img src="/media/ju1.jpeg" alt="" class="memory-photo memory-photo-2" />
+      <img src="/media/ju2.jpeg" alt="" class="memory-photo memory-photo-3" />
+      <img src="/media/douglas2.jpeg" alt="" class="memory-photo memory-photo-4" />
+    </div>
+
+    <div class="bg-shape bg-shape-top"></div>
+    <div class="bg-shape bg-shape-bottom"></div>
+
+    <main class="page">
+      <section class="hero reveal">
+        <div class="hero-seal" aria-hidden="true">D&amp;J</div>
+        <h1>Compartilhe <span>sua foto</span></h1>
+        <p class="hero-note">Preencha seu nome, escolha a imagem e participe.</p>
+      </section>
+
+      <section class="card reveal reveal-delay-1 challenge-upload-card">
+        <form id="challenge-upload-form" novalidate>
+          <label for="challengeGuestName">Seu nome</label>
+          <input
+            id="challengeGuestName"
+            name="challengeGuestName"
+            type="text"
+            maxlength="120"
+            placeholder="Digite seu nome"
+            required
+          />
+
+          <label for="challengePhoto">Imagem do desafio</label>
+          <input
+            id="challengePhoto"
+            name="challengePhoto"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+            required
+          />
+
+          <p class="hint">
+            Formatos aceitos: JPG, PNG, WEBP, HEIC e HEIF. Cada pessoa pode enviar uma imagem por desafio.
+          </p>
+
+          <button id="challenge-upload-submit" type="submit">Enviar imagem</button>
+          <p id="challenge-upload-status" class="challenge-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      window.CHALLENGE_UPLOAD_POLL_INTERVAL_MS = "__CHALLENGE_UPLOAD_POLL_INTERVAL_MS__";
+    </script>
+    <script src="/challenge.js" defer></script>
+  </body>
+</html>

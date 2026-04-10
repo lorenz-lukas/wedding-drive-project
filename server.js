@@ -8,6 +8,11 @@ const galleryHandler = require("./api/gallery");
 const galleryMediaHandler = require("./api/gallery-media");
 const loginHandler = require("./api/login");
 const downloadHandler = require("./api/download");
+const challengeHandler = require("./api/challenge");
+const challengeUploadHandler = require("./api/challenge-upload");
+const challengeFinalizeHandler = require("./api/challenge-finalize");
+const challengeSubmissionsHandler = require("./api/challenge-submissions");
+const challengeSubmissionMediaHandler = require("./api/challenge-submission-media");
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -60,12 +65,43 @@ function resolveStaticFile(urlPath) {
     return path.join(PUBLIC_DIR, "download.html");
   }
 
+  if (
+    decodedPath === "/challenges" ||
+    decodedPath === "/challenges/" ||
+    decodedPath === "/desafios" ||
+    decodedPath === "/desafios/"
+  ) {
+    return path.join(PUBLIC_DIR, "challenge-board.html");
+  }
+
+  if (
+    decodedPath === "/challenges/create" ||
+    decodedPath === "/challenges/create/" ||
+    decodedPath === "/desafios/criar" ||
+    decodedPath === "/desafios/criar/"
+  ) {
+    return path.join(PUBLIC_DIR, "challenge-create.html");
+  }
+
+  if (
+    decodedPath === "/challenges/upload" ||
+    decodedPath === "/challenges/upload/" ||
+    decodedPath === "/desafios/upload" ||
+    decodedPath === "/desafios/upload/"
+  ) {
+    return path.join(PUBLIC_DIR, "challenge-upload.html");
+  }
+
   if (decodedPath.startsWith("/media/")) {
     const relativePath = path.normalize(decodedPath.slice("/media/".length));
     if (relativePath.startsWith("..")) {
       return null;
     }
-    return path.join(MEDIA_DIR, relativePath);
+    const primaryMediaPath = path.join(MEDIA_DIR, relativePath);
+    if (fs.existsSync(primaryMediaPath)) {
+      return primaryMediaPath;
+    }
+    return path.join(PUBLIC_DIR, "media", relativePath);
   }
 
   const normalizedPath =
@@ -76,6 +112,15 @@ function resolveStaticFile(urlPath) {
   }
 
   return path.join(PUBLIC_DIR, normalizedPath);
+}
+
+function renderHtmlTemplate(content) {
+  const challengePoll = String(process.env.CHALLENGE_POLL_INTERVAL_MS || "120000");
+  const uploadChallengePoll = String(process.env.CHALLENGE_UPLOAD_POLL_INTERVAL_MS || "180000");
+
+  return content
+    .replace(/__CHALLENGE_POLL_INTERVAL_MS__/g, challengePoll)
+    .replace(/__CHALLENGE_UPLOAD_POLL_INTERVAL_MS__/g, uploadChallengePoll);
 }
 
 function serveStaticFile(filePath, res, method) {
@@ -89,13 +134,31 @@ function serveStaticFile(filePath, res, method) {
 
     res.statusCode = 200;
     res.setHeader("Content-Type", getContentType(filePath));
-    res.setHeader("Content-Length", stats.size);
 
     if (method === "HEAD") {
       res.end();
       return;
     }
 
+    if (path.extname(filePath).toLowerCase() === ".html") {
+      fs.readFile(filePath, "utf8", (readError, content) => {
+        if (readError) {
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "text/plain; charset=utf-8");
+          }
+          res.end("Falha ao ler arquivo.");
+          return;
+        }
+
+        const rendered = renderHtmlTemplate(content);
+        res.setHeader("Content-Length", Buffer.byteLength(rendered, "utf8"));
+        res.end(rendered, "utf8");
+      });
+      return;
+    }
+
+    res.setHeader("Content-Length", stats.size);
     const stream = fs.createReadStream(filePath);
     stream.on("error", () => {
       if (!res.headersSent) {
@@ -180,6 +243,67 @@ const server = http.createServer(async (req, res) => {
   if (requestUrl.pathname === "/api/download") {
     try {
       await downloadHandler(req, enhanceResponse(res));
+    } catch (error) {
+      enhanceResponse(res)
+        .status(500)
+        .json({ error: "Falha interna no servidor.", details: error.message });
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/challenges" || requestUrl.pathname === "/api/challenge") {
+    try {
+      await challengeHandler(req, enhanceResponse(res));
+    } catch (error) {
+      enhanceResponse(res)
+        .status(500)
+        .json({ error: "Falha interna no servidor.", details: error.message });
+    }
+    return;
+  }
+
+  if (
+    requestUrl.pathname === "/api/challenge-submissions" ||
+    requestUrl.pathname === "/api/challenge-upload"
+  ) {
+    try {
+      await challengeUploadHandler(req, enhanceResponse(res));
+    } catch (error) {
+      enhanceResponse(res)
+        .status(500)
+        .json({ error: "Falha interna no servidor.", details: error.message });
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/challenge-submissions-feed") {
+    try {
+      await challengeSubmissionsHandler(req, enhanceResponse(res));
+    } catch (error) {
+      enhanceResponse(res)
+        .status(500)
+        .json({ error: "Falha interna no servidor.", details: error.message });
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/challenge-submission-media") {
+    try {
+      await challengeSubmissionMediaHandler(req, enhanceResponse(res));
+    } catch (error) {
+      enhanceResponse(res)
+        .status(500)
+        .json({ error: "Falha interna no servidor.", details: error.message });
+    }
+    return;
+  }
+
+  if (
+    requestUrl.pathname === "/api/challenges/finalize" ||
+    requestUrl.pathname === "/api/challenge-finalize"
+  ) {
+    try {
+      await challengeFinalizeHandler(req, enhanceResponse(res));
     } catch (error) {
       enhanceResponse(res)
         .status(500)

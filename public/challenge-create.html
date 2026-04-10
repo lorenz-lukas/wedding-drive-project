@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Douglas & Juliana | Criar Desafio</title>
+    <meta
+      name="description"
+      content="Painel dos noivos para criar um desafio especial para os convidados."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Mulish:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-challenge-page="create">
+    <div class="modal-shell" id="auth-modal-shell" aria-hidden="false">
+      <div class="modal-backdrop"></div>
+      <section
+        class="guest-modal auth-modal"
+        id="auth-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-modal-title"
+      >
+        <p class="modal-kicker">Area privada</p>
+        <h2 id="auth-modal-title">Acesso dos noivos</h2>
+        <p class="modal-copy">
+          Informe usuario e senha para criar ou atualizar o desafio dos convidados.
+        </p>
+
+        <form id="auth-form" class="modal-form" novalidate>
+          <label for="authUsername">Usuario</label>
+          <input id="authUsername" name="authUsername" type="text" maxlength="80" required />
+
+          <label for="authPassword">Senha</label>
+          <input
+            id="authPassword"
+            name="authPassword"
+            type="password"
+            maxlength="120"
+            autocomplete="current-password"
+            required
+          />
+
+          <p id="auth-status" class="modal-status" role="status" aria-live="polite"></p>
+
+          <div class="modal-actions">
+            <button id="auth-submit" type="submit">Entrar</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="floral-layer" aria-hidden="true">
+      <div class="flower-spray flower-spray-top-left"></div>
+      <div class="flower-spray flower-spray-top-right"></div>
+      <div class="flower-spray flower-spray-bottom-left"></div>
+      <div class="flower-spray flower-spray-bottom-right"></div>
+    </div>
+
+    <div class="background-memory" aria-hidden="true">
+      <img src="/media/4.jpg" alt="" class="memory-photo memory-photo-1" />
+      <img src="/media/6.jpg" alt="" class="memory-photo memory-photo-2" />
+      <img src="/media/8.jpg" alt="" class="memory-photo memory-photo-3" />
+    </div>
+
+    <div class="bg-shape bg-shape-top"></div>
+    <div class="bg-shape bg-shape-bottom"></div>
+
+    <main class="page">
+      <section class="hero reveal">
+        <div class="hero-seal" aria-hidden="true">D&amp;J</div>
+        <p class="hero-overline">Desafio para os convidados</p>
+        </section>
+
+      <section class="card reveal reveal-delay-1 challenge-form-card">
+        <h2>Novo desafio</h2>
+        <p>Escrevam a missao, detalhem o que vale pontos e indiquem o premio da rodada.</p>
+
+        <form id="challenge-create-form" novalidate>
+          <label for="challengeTitle">Desafio</label>
+          <input
+            id="challengeTitle"
+            name="challengeTitle"
+            type="text"
+            maxlength="100"
+            placeholder=""
+            required
+          />
+
+          <label for="prize">Premio</label>
+          <input
+            id="prize"
+            name="prize"
+            type="text"
+            maxlength="120"
+            placeholder=""
+            required
+          />
+
+          <div class="challenge-cta-row">
+            <button id="challenge-create-submit" type="submit">Enviar desafio</button>
+          </div>
+          <p id="challenge-create-status" class="challenge-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="card reveal reveal-delay-2 challenge-form-card">
+        <h2>
+          Placar <span id="challenge-round-number" class="challenge-round-number"></span>
+        </h2>
+        <form id="challenge-admin-form" novalidate>
+          <div class="challenge-ranking-table" id="challenge-admin-ranking-table"></div>
+
+          <label for="challengeWinner">Quem ganhou</label>
+          <select
+            id="challengeWinner"
+            name="challengeWinner"
+          >
+            <option value="">Selecione o vencedor</option>
+          </select>
+
+          <div class="challenge-cta-row">
+            <button id="challenge-save-winner-button" type="button">Salvar vencedor</button>
+            <button id="challenge-finalize-button" class="button-secondary" type="button">
+              TERMINAR DESAFIOS
+            </button>
+          </div>
+          <p id="challenge-admin-status" class="challenge-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      window.CHALLENGE_POLL_INTERVAL_MS = "__CHALLENGE_POLL_INTERVAL_MS__";
+    </script>
+    <script src="/challenge.js" defer></script>
+  </body>
+</html>

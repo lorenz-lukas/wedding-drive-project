@@ -1,5 +1,5 @@
 const {
-  createDriveClient,
+  runDriveOperation,
   parseAllowedOrigins,
   isOriginAllowed,
   applyOriginHeaders,
@@ -45,45 +45,46 @@ async function collectGalleryPhotos(rootFolderId) {
   const rawMaxItems = Number(process.env.GALLERY_MAX_ITEMS || DEFAULT_MAX_GALLERY_ITEMS);
   const maxItems = Number.isFinite(rawMaxItems) && rawMaxItems > 0 ? rawMaxItems : Number.POSITIVE_INFINITY;
 
-  const drive = createDriveClient();
-  const queue = [rootFolderId];
-  const visitedFolders = new Set();
-  const photos = [];
+  return runDriveOperation(async (drive) => {
+    const queue = [rootFolderId];
+    const visitedFolders = new Set();
+    const photos = [];
 
-  while (queue.length > 0 && photos.length < maxItems) {
-    const folderId = queue.shift();
+    while (queue.length > 0 && photos.length < maxItems) {
+      const folderId = queue.shift();
 
-    if (!folderId || visitedFolders.has(folderId)) {
-      continue;
-    }
-
-    visitedFolders.add(folderId);
-
-    const children = await listFolderChildren(drive, folderId);
-
-    for (const item of children) {
-      if (item.mimeType === FOLDER_MIME) {
-        queue.push(item.id);
+      if (!folderId || visitedFolders.has(folderId)) {
         continue;
       }
 
-      if (!IMAGE_MIME_TYPES.has(item.mimeType)) {
-        continue;
-      }
+      visitedFolders.add(folderId);
 
-      photos.push({
-        id: item.id,
-        name: item.name,
-        createdTime: item.createdTime
-      });
+      const children = await listFolderChildren(drive, folderId);
 
-      if (photos.length >= maxItems) {
-        break;
+      for (const item of children) {
+        if (item.mimeType === FOLDER_MIME) {
+          queue.push(item.id);
+          continue;
+        }
+
+        if (!IMAGE_MIME_TYPES.has(item.mimeType)) {
+          continue;
+        }
+
+        photos.push({
+          id: item.id,
+          name: item.name,
+          createdTime: item.createdTime
+        });
+
+        if (photos.length >= maxItems) {
+          break;
+        }
       }
     }
-  }
 
-  return photos;
+    return photos;
+  }, { operationName: "collect-gallery-photos" });
 }
 
 module.exports = async (req, res) => {

@@ -1,6 +1,6 @@
 const archiver = require("archiver");
 const {
-  createDriveClient,
+  runDriveOperation,
   parseAllowedOrigins,
   isOriginAllowed,
   applyOriginHeaders,
@@ -102,11 +102,13 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const drive = createDriveClient();
     const rootFolderId = resolveDriveFileId(process.env.GOOGLE_DRIVE_FOLDER_ID);
     logger.info("Collecting images for download", { rootFolderId });
 
-    const images = await collectAllImages(drive, rootFolderId);
+    const images = await runDriveOperation(
+      (drive) => collectAllImages(drive, rootFolderId),
+      { operationName: "download-collect-images" }
+    );
     logger.info("Images collected", { count: images.length });
 
     res.setHeader("Content-Type", "application/zip");
@@ -129,9 +131,13 @@ module.exports = async (req, res) => {
     archive.pipe(res);
 
     for (const image of images) {
-      const driveRes = await drive.files.get(
-        { fileId: image.id, alt: "media", supportsAllDrives: true },
-        { responseType: "stream" }
+      const driveRes = await runDriveOperation(
+        (drive) =>
+          drive.files.get(
+            { fileId: image.id, alt: "media", supportsAllDrives: true },
+            { responseType: "stream" }
+          ),
+        { operationName: "download-image-stream" }
       );
 
       const entryName = image.folderPath

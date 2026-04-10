@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Douglas & Juliana | Desafio da Rodada</title>
+    <meta
+      name="description"
+      content="Tela do desafio com ranking, QR code de envio e controle do vencedor."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Mulish:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-challenge-page="board">
+    <div class="modal-shell" id="auth-modal-shell" aria-hidden="false">
+      <div class="modal-backdrop"></div>
+      <section
+        class="guest-modal auth-modal"
+        id="auth-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-modal-title"
+      >
+        <p class="modal-kicker">Area privada</p>
+        <h2 id="auth-modal-title">Acesso dos noivos</h2>
+        <p class="modal-copy">
+          Informe usuario e senha para acessar o placar dos desafios.
+        </p>
+
+        <form id="auth-form" class="modal-form" novalidate>
+          <label for="authUsername">Usuario</label>
+          <input id="authUsername" name="authUsername" type="text" maxlength="80" required />
+
+          <label for="authPassword">Senha</label>
+          <input
+            id="authPassword"
+            name="authPassword"
+            type="password"
+            maxlength="120"
+            autocomplete="current-password"
+            required
+          />
+
+          <p id="auth-status" class="modal-status" role="status" aria-live="polite"></p>
+
+          <div class="modal-actions">
+            <button id="auth-submit" type="submit">Entrar</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="floral-layer" aria-hidden="true">
+      <div class="flower-spray flower-spray-top-left"></div>
+      <div class="flower-spray flower-spray-top-right"></div>
+      <div class="flower-spray flower-spray-bottom-left"></div>
+      <div class="flower-spray flower-spray-bottom-right"></div>
+    </div>
+
+    <div class="background-memory" aria-hidden="true">
+      <img src="/media/1.jpg" alt="" class="memory-photo memory-photo-1" />
+      <img src="/media/5.jpg" alt="" class="memory-photo memory-photo-2" />
+      <img src="/media/7.jpg" alt="" class="memory-photo memory-photo-3" />
+    </div>
+
+    <div class="bg-shape bg-shape-top"></div>
+    <div class="bg-shape bg-shape-bottom"></div>
+
+    <main class="page challenge-board-page">
+      <section class="hero reveal">
+        <div class="hero-seal" aria-hidden="true">D&amp;J</div>
+        <h1>Missao <span>dos convidados</span></h1>
+        <p class="challenge-board-round" id="challenge-board-round">Rodada 1</p>
+      </section>
+
+      <section class="story reveal reveal-delay-1 challenge-board-card">
+        <div class="challenge-board-grid">
+          <aside class="challenge-side-panel challenge-ranking-panel">
+            <h2>Placar</h2>
+            
+            <div class="challenge-ranking-table challenge-ranking-table-readonly" id="challenge-ranking-table"></div>
+          </aside>
+
+          <div class="challenge-main-panel">
+            <h2 id="challenge-board-title">Carregando desafio...</h2>
+
+            <div class="challenge-highlight">
+              <span class="challenge-highlight-label">Premio</span>
+              <strong id="challenge-board-prize">-</strong>
+            </div>
+
+            <div class="challenge-highlight challenge-highlight-soft">
+              <span class="challenge-highlight-label">Vencedor atual</span>
+              <strong id="challenge-board-winner-display">Aguardando definicao</strong>
+            </div>
+          </div>
+
+          <aside class="challenge-side-panel challenge-qr-panel">
+            <h2>Imagens</h2>
+            <div class="qr-shell">
+              <img id="challenge-qr-image" alt="QR code para envio do desafio" />
+            </div>
+            <a id="challenge-upload-link" class="button-link" href="https://casamento-douglas-juliana.vercel.app/challenges/upload">
+              Abrir link do upload
+            </a>
+          </aside>
+        </div>
+
+        <footer class="challenge-board-footer">
+          <button id="challenge-open-gallery" class="button-secondary challenge-gallery-button" type="button">
+            Ver imagens dos candidatos
+          </button>
+        </footer>
+      </section>
+    </main>
+
+    <div class="modal-shell hidden" id="challenge-gallery-modal-shell" aria-hidden="true">
+      <div class="modal-backdrop" data-close-challenge-gallery></div>
+      <section
+        class="guest-modal challenge-gallery-modal"
+        role="dialog"
+        aria-modal="true"
+      >
+        <button
+          class="modal-close"
+          id="challenge-gallery-close"
+          type="button"
+          aria-label="Fechar galeria"
+        >
+          x
+        </button>
+        <div class="challenge-gallery-grid challenge-gallery-grid-modal" id="challenge-gallery-grid"></div>
+      </section>
+    </div>
+
+    <div class="modal-shell hidden challenge-podium-overlay-shell" id="challenge-podium-overlay-shell" aria-hidden="true">
+      <div class="modal-backdrop challenge-podium-overlay-backdrop"></div>
+      <section
+        class="guest-modal challenge-podium-overlay"
+        id="challenge-podium-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="challenge-podium-overlay-title"
+      >
+        <h2 id="challenge-podium-overlay-title">Resultado oficial</h2>
+        <div class="challenge-podium-overlay-track" aria-hidden="true"></div>
+        <div class="challenge-podium-overlay-stage" id="challenge-podium-overlay-stage" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <script>
+      window.CHALLENGE_POLL_INTERVAL_MS = "__CHALLENGE_POLL_INTERVAL_MS__";
+    </script>
+    <script src="/challenge.js" defer></script>
+  </body>
+</html>
