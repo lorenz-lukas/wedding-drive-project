@@ -39,6 +39,11 @@ function saveAuthToken(token) {
   } catch {}
 }
 
+function handleUnauthorized(message = "") {
+  saveAuthToken("");
+  openAuthModal(message);
+}
+
 function revokeObjectUrls(urlSet) {
   urlSet.forEach((url) => URL.revokeObjectURL(url));
   urlSet.clear();
@@ -66,8 +71,8 @@ async function fetchProtectedImageUrl(endpoint, mediaToken, urlSet) {
     body: JSON.stringify({ token: mediaToken })
   });
   if (response.status === 401) {
-    openAuthModal();
-    throw new Error("Sessao expirada. Entre novamente.");
+    handleUnauthorized();
+    throw new Error("Entre novamente para carregar as imagens protegidas.");
   }
   if (!response.ok) {
     throw new Error("Falha ao carregar imagem protegida.");
@@ -79,10 +84,13 @@ async function fetchProtectedImageUrl(endpoint, mediaToken, urlSet) {
   return objectUrl;
 }
 
-function openAuthModal() {
+function openAuthModal(message = "") {
   if (!authModalShell) return;
   authModalShell.classList.remove("hidden");
   authModalShell.setAttribute("aria-hidden", "false");
+  if (authStatus) {
+    authStatus.textContent = message;
+  }
   window.setTimeout(() => authUsernameInput?.focus(), 30);
 }
 
@@ -163,8 +171,8 @@ async function readResponsePayload(response) {
 
 function getFriendlyHttpError(response, payload, fallbackMessage, rawText = "") {
   if (response.status === 401) {
-    openAuthModal();
-    return "Sessao expirada. Entre novamente.";
+    handleUnauthorized();
+    return "Entre com usuario e senha para continuar.";
   }
 
   if (response.status === 429) {
