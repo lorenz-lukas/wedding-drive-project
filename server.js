@@ -17,6 +17,7 @@ const challengeSubmissionMediaHandler = require("./api/challenge-submission-medi
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
 const MEDIA_DIR = path.join(__dirname, "media");
+const DISABLE_CHALLENGE_ROUTES = String(process.env.DISABLE_CHALLENGE_ROUTES || "false").trim().toLowerCase() === "true";
 
 const CONTENT_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -66,24 +67,36 @@ function resolveStaticFile(urlPath) {
   }
 
   if (
-    decodedPath === "/challenges" ||
-    decodedPath === "/challenges/" ||
-    decodedPath === "/desafios" ||
-    decodedPath === "/desafios/"
+    !DISABLE_CHALLENGE_ROUTES &&
+    (
+      decodedPath === "/challenge-board" ||
+      decodedPath === "/challenge-board/" ||
+      decodedPath === "/challenges" ||
+      decodedPath === "/challenges/" ||
+      decodedPath === "/desafios" ||
+      decodedPath === "/desafios/"
+    )
   ) {
     return path.join(PUBLIC_DIR, "challenge-board.html");
   }
 
   if (
-    decodedPath === "/challenges/create" ||
-    decodedPath === "/challenges/create/" ||
-    decodedPath === "/desafios/criar" ||
-    decodedPath === "/desafios/criar/"
+    !DISABLE_CHALLENGE_ROUTES &&
+    (
+      decodedPath === "/challenge-create" ||
+      decodedPath === "/challenge-create/" ||
+      decodedPath === "/challenges/create" ||
+      decodedPath === "/challenges/create/" ||
+      decodedPath === "/desafios/criar" ||
+      decodedPath === "/desafios/criar/"
+    )
   ) {
     return path.join(PUBLIC_DIR, "challenge-create.html");
   }
 
   if (
+    decodedPath === "/challenge-upload" ||
+    decodedPath === "/challenge-upload/" ||
     decodedPath === "/challenges/upload" ||
     decodedPath === "/challenges/upload/" ||
     decodedPath === "/desafios/upload" ||
@@ -252,6 +265,22 @@ const server = http.createServer(async (req, res) => {
         .status(500)
         .json({ error: "Falha interna no servidor.", details: error.message });
     }
+    return;
+  }
+
+  if (
+    DISABLE_CHALLENGE_ROUTES &&
+    (
+      requestUrl.pathname === "/api/challenges" ||
+      requestUrl.pathname === "/api/challenge" ||
+      requestUrl.pathname === "/api/challenge-submissions" ||
+      requestUrl.pathname === "/api/challenge-submissions-feed" ||
+      requestUrl.pathname === "/api/challenge-submission-media" ||
+      requestUrl.pathname === "/api/challenges/finalize" ||
+      requestUrl.pathname === "/api/challenge-finalize"
+    )
+  ) {
+    enhanceResponse(res).status(404).json({ error: "Challenge desativado temporariamente." });
     return;
   }
 
