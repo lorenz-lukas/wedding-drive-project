@@ -10,9 +10,21 @@ const loginHandler = require("./api/login");
 const downloadHandler = require("./api/download");
 const challengeHandler = require("./api/challenge");
 const challengeUploadHandler = require("./api/challenge-upload");
-const challengeFinalizeHandler = require("./api/challenge-finalize");
-const challengeSubmissionsHandler = require("./api/challenge-submissions");
-const challengeSubmissionMediaHandler = require("./api/challenge-submission-media");
+
+function optionalRequire(modulePath) {
+  try {
+    return require(modulePath);
+  } catch (error) {
+    if (error && (error.code === "MODULE_NOT_FOUND" || /Cannot find module/i.test(String(error.message || "")))) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+const challengeFinalizeHandler = optionalRequire("./api/challenge-finalize");
+const challengeSubmissionsHandler = optionalRequire("./api/challenge-submissions");
+const challengeSubmissionMediaHandler = optionalRequire("./api/challenge-submission-media");
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
