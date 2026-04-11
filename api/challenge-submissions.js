@@ -8,6 +8,7 @@ const {
 const challengeHandler = require("./challenge");
 const { requireAuth } = require("../lib/auth");
 const { createRequestLogger } = require("../lib/_logger");
+const { createMediaToken } = require("../lib/media-token");
 const { enforceRateLimit } = require("../lib/rate-limit");
 
 const CHALLENGE_FOLDER_NAME = "desafios";
@@ -83,10 +84,8 @@ module.exports = async (req, res) => {
           }
 
           collected.push({
-            id: file.id,
-            name: file.name,
             guestName: extractSubmitterName(file.name, challengeNumber),
-            src: `/api/challenge-submission-media?fileId=${encodeURIComponent(file.id)}`
+            mediaToken: createMediaToken({ fileId: file.id, scope: "challenge-submission-media" })
           });
         }
 

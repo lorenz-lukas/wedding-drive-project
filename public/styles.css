@@ -1474,6 +1474,20 @@ footer {
     inset 0 2px 4px rgba(255, 255, 255, 0.75);
 }
 
+.challenge-podium-f1-trophy-silver {
+  background: radial-gradient(circle at 30% 30%, #ffffff 0%, #dfe5ef 48%, #9aa4b3 100%);
+  box-shadow:
+    0 10px 24px rgba(108, 120, 138, 0.32),
+    inset 0 2px 4px rgba(255, 255, 255, 0.86);
+}
+
+.challenge-podium-f1-trophy-bronze {
+  background: radial-gradient(circle at 30% 30%, #ffe2c7 0%, #d89a63 48%, #8d5936 100%);
+  box-shadow:
+    0 10px 24px rgba(145, 96, 57, 0.3),
+    inset 0 2px 4px rgba(255, 245, 235, 0.72);
+}
+
 .challenge-podium-f1-crown {
   margin-top: -0.1rem;
   padding: 0.32rem 0.7rem;

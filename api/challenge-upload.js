@@ -88,9 +88,7 @@ const handler = async (req, res) => {
     });
 
     return res.status(200).json({
-      ok: true,
-      file: uploaded,
-      folder: challengeFolder
+      ok: true
     });
   } catch (error) {
     logger.error("Challenge upload failed", {

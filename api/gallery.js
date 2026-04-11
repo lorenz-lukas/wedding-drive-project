@@ -7,6 +7,7 @@ const {
 } = require("../lib/_drive");
 const { requireAuth } = require("../lib/auth");
 const { createRequestLogger } = require("../lib/_logger");
+const { createMediaToken } = require("../lib/media-token");
 const { enforceRateLimit } = require("../lib/rate-limit");
 
 const DEFAULT_MAX_GALLERY_ITEMS = 500;
@@ -120,8 +121,7 @@ module.exports = async (req, res) => {
       ok: true,
       count: photos.length,
       photos: photos.map((photo) => ({
-        id: photo.id,
-        src: `/api/gallery-media?fileId=${encodeURIComponent(photo.id)}`,
+        mediaToken: createMediaToken({ fileId: photo.id, scope: "gallery-media" }),
         alt: "Foto enviada pelos convidados",
         caption: ""
       }))

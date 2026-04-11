@@ -233,9 +233,7 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      guestFolder,
-      uploadedCount: uploaded.length,
-      files: uploaded
+      uploadedCount: uploaded.length
     });
   } catch (error) {
     if (error && error.code === 1009) {

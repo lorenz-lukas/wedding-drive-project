@@ -128,8 +128,13 @@ function revokeGalleryObjectUrls() {
   galleryObjectUrls = [];
 }
 
-async function loadProtectedImageUrl(mediaSrc) {
-  const response = await apiFetch(mediaSrc, { cache: "no-store" });
+async function loadProtectedImageUrl(mediaToken) {
+  const response = await apiFetch("/api/gallery-media", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: mediaToken })
+  });
   if (!response.ok) {
     throw new Error("Falha ao carregar imagem protegida.");
   }
@@ -196,7 +201,7 @@ async function loadGallerySlides() {
     revokeGalleryObjectUrls();
 
     const mappedSlides = await Promise.all(payload.photos.map(async (photo, index) => {
-      if (!photo?.src) {
+      if (!photo?.mediaToken) {
         return null;
       }
 
@@ -205,7 +210,7 @@ async function loadGallerySlides() {
       article.setAttribute("data-slide", "");
 
       const image = document.createElement("img");
-      image.src = await loadProtectedImageUrl(photo.src);
+      image.src = await loadProtectedImageUrl(photo.mediaToken);
       image.alt = photo.alt || "Foto do casamento";
 
       article.appendChild(image);

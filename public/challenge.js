@@ -30,10 +30,12 @@ function saveAuthToken(token) {
   try {
     if (token) {
       localStorage.setItem(AUTH_TOKEN_KEY, token);
+      window.dispatchEvent(new CustomEvent("challenge-auth-changed", { detail: { authenticated: true } }));
       return;
     }
 
     localStorage.removeItem(AUTH_TOKEN_KEY);
+    window.dispatchEvent(new CustomEvent("challenge-auth-changed", { detail: { authenticated: false } }));
   } catch {}
 }
 
@@ -56,8 +58,13 @@ async function fetchWithOptionalAuth(url, options = {}) {
   });
 }
 
-async function fetchProtectedImageUrl(url, urlSet) {
-  const response = await fetchWithOptionalAuth(url, { cache: "no-store" });
+async function fetchProtectedImageUrl(endpoint, mediaToken, urlSet) {
+  const response = await fetchWithOptionalAuth(endpoint, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: mediaToken })
+  });
   if (response.status === 401) {
     openAuthModal();
     throw new Error("Sessao expirada. Entre novamente.");
@@ -286,6 +293,11 @@ async function fetchChallenge() {
 }
 
 async function fetchChallengeSubmissions() {
+  if (!getAuthToken()) {
+    openAuthModal();
+    throw new Error("Entre com usuario e senha para ver as imagens do desafio.");
+  }
+
   const response = await fetchWithOptionalAuth("/api/challenge-submissions-feed", { cache: "no-store" });
   const { rawText, payload } = await readResponsePayload(response);
 
@@ -452,8 +464,12 @@ function renderChallengeGallery(container, photos) {
     const image = document.createElement("img");
     image.className = "challenge-gallery-image";
     image.alt = photo.guestName ? `Imagem enviada por ${photo.guestName}` : "Imagem do desafio";
-    if (photo?.src) {
-      fetchProtectedImageUrl(photo.src, challengeMediaObjectUrls)
+    if (photo?.mediaToken) {
+      fetchProtectedImageUrl(
+        "/api/challenge-submission-media",
+        photo.mediaToken,
+        challengeMediaObjectUrls
+      )
         .then((objectUrl) => {
           image.src = objectUrl;
         })
@@ -658,6 +674,16 @@ async function initCreatePage() {
   }
 
   async function refreshAdminSubmissions() {
+    if (!getAuthToken()) {
+      currentPhotos = [];
+      if (currentChallenge) {
+        renderChallengeRankingTable(rankingTable, currentChallenge, currentPhotos);
+      }
+      updateWinnerOptions(winnerInput, currentPhotos, currentChallenge);
+      setStatus(adminStatus, "Entre com usuario e senha para ver as imagens do desafio.", "info");
+      return;
+    }
+
     try {
       const payload = await fetchChallengeSubmissions();
       currentPhotos = payload.photos || [];
@@ -700,11 +726,28 @@ async function initCreatePage() {
   try {
     const challenge = await fetchChallenge();
     applyChallengeToAdmin(challenge);
-    await refreshAdminSubmissions();
+    if (getAuthToken()) {
+      await refreshAdminSubmissions();
+    }
     setStatus(status, "");
   } catch (error) {
     setStatus(status, error.message || "Nao foi possivel carregar o desafio.", "error");
   }
+
+  window.addEventListener("challenge-auth-changed", async () => {
+    if (!getAuthToken()) {
+      return;
+    }
+
+    try {
+      const challenge = await fetchChallenge();
+      applyChallengeToAdmin(challenge);
+      await refreshAdminSubmissions();
+      setStatus(status, "");
+    } catch (error) {
+      setStatus(status, error.message || "Nao foi possivel carregar o desafio.", "error");
+    }
+  });
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -913,20 +956,19 @@ async function initBoardPage() {
     podiumOverlayCopy.textContent = `Rodada ${Number(latestRound.challengeNumber || 1)} encerrada. ${winnerName} lidera a celebração até o próximo desafio entrar no ar.`;
     podiumOverlayStage.innerHTML = `
       <article class="challenge-podium-f1-card challenge-podium-f1-card-second" style="animation-delay: 0.18s;">
-        <div class="challenge-podium-f1-trophy" aria-hidden="true">🏆</div>
+        <div class="challenge-podium-f1-trophy challenge-podium-f1-trophy-silver" aria-hidden="true">🏆</div>
         <span class="challenge-podium-f1-place">2º lugar</span>
         <strong>${escapeHtml(second.name)}</strong>
         <span class="challenge-podium-f1-points">${second.points} pts</span>
       </article>
       <article class="challenge-podium-f1-card challenge-podium-f1-card-first" style="animation-delay: 0s;">
-        <div class="challenge-podium-f1-crown" aria-hidden="true">VENCEDOR</div>
         <div class="challenge-podium-f1-trophy" aria-hidden="true">🏆</div>
         <span class="challenge-podium-f1-place">1º lugar</span>
         <strong>${escapeHtml(first.name)}</strong>
         <span class="challenge-podium-f1-points">${first.points} pts</span>
       </article>
       <article class="challenge-podium-f1-card challenge-podium-f1-card-third" style="animation-delay: 0.32s;">
-        <div class="challenge-podium-f1-trophy" aria-hidden="true">🏆</div>
+        <div class="challenge-podium-f1-trophy challenge-podium-f1-trophy-bronze" aria-hidden="true">🏆</div>
         <span class="challenge-podium-f1-place">3º lugar</span>
         <strong>${escapeHtml(third.name)}</strong>
         <span class="challenge-podium-f1-points">${third.points} pts</span>
@@ -966,6 +1008,15 @@ async function initBoardPage() {
   }
 
   async function refreshGallery() {
+    if (!getAuthToken()) {
+      currentPhotos = [];
+      renderChallengeGallery(galleryGrid, currentPhotos);
+      if (currentChallenge) {
+        renderChallengeRankingTable(rankingTable, currentChallenge, currentPhotos);
+      }
+      return;
+    }
+
     const payload = await fetchChallengeSubmissions();
     currentPhotos = payload.photos || [];
     renderChallengeGallery(galleryGrid, currentPhotos);
@@ -994,10 +1045,23 @@ async function initBoardPage() {
 
   try {
     await refreshBoard(true);
-    await refreshGallery();
+    if (getAuthToken()) {
+      await refreshGallery();
+    }
   } catch (error) {
     title.textContent = "Nao foi possivel carregar o desafio.";
   }
+
+  window.addEventListener("challenge-auth-changed", async () => {
+    if (!getAuthToken()) {
+      return;
+    }
+
+    try {
+      await refreshBoard(true);
+      await refreshGallery();
+    } catch {}
+  });
 
   window.addEventListener("storage", async (event) => {
     if (event.key !== CHALLENGE_SYNC_KEY) return;
