@@ -14,11 +14,19 @@ const {
 } = require("../lib/_drive");
 const { requireAuth } = require("../lib/auth");
 const { createLogger, createRequestLogger } = require("../lib/_logger");
+const { enforceRateLimit } = require("../lib/rate-limit");
 
 const stateLogger = createLogger("challenge-state");
 const CHALLENGE_STATE_FILE = path.join(os.tmpdir(), "wedding-challenge-state.local.json");
 const CHALLENGE_STATE_FILE_NAME = "wedding-challenge-state.json";
 const CHALLENGE_FOLDER_NAME = "desafios";
+const STATE_CACHE_TTL_MS = Math.max(1000, Number(process.env.CHALLENGE_STATE_CACHE_TTL_MS || 15000));
+const VERBOSE_APP_LOGS = process.env.NODE_ENV !== "production" || process.env.ENABLE_VERBOSE_APP_LOGS === "true";
+
+let stateCache = {
+  expiresAt: 0,
+  value: null
+};
 
 function getDefaultState() {
   return {
@@ -40,46 +48,64 @@ function getDefaultState() {
   };
 }
 
+function readCachedState() {
+  if (!stateCache.value || stateCache.expiresAt <= Date.now()) {
+    return null;
+  }
+
+  return mergeWithDefaultState(stateCache.value);
+}
+
+function writeCachedState(state) {
+  stateCache = {
+    value: mergeWithDefaultState(state),
+    expiresAt: Date.now() + STATE_CACHE_TTL_MS
+  };
+}
+
 async function readState() {
+  const cachedState = readCachedState();
+  if (cachedState) {
+    return cachedState;
+  }
+
   if (canUseDriveState()) {
     try {
       const driveState = await readStateFromDrive();
       if (driveState) {
-        stateLogger.info("Challenge state loaded from Drive", {
-          challengeId: driveState.id,
-          challengeNumber: driveState.challengeNumber
-        });
-        return mergeWithDefaultState(driveState);
+        const nextState = mergeWithDefaultState(driveState);
+        writeCachedState(nextState);
+        return nextState;
       }
     } catch (error) {
       stateLogger.error("Failed to load challenge state from Drive", {
-        errorMessage: error?.message,
-        errorStack: error?.stack
+        errorMessage: error?.message
       });
     }
   }
 
   try {
     const raw = await fs.promises.readFile(CHALLENGE_STATE_FILE, "utf8");
-    return mergeWithDefaultState(JSON.parse(raw));
+    const nextState = mergeWithDefaultState(JSON.parse(raw));
+    writeCachedState(nextState);
+    return nextState;
   } catch {
-    return getDefaultState();
+    const nextState = getDefaultState();
+    writeCachedState(nextState);
+    return nextState;
   }
 }
 
 async function writeState(state) {
+  writeCachedState(state);
+
   if (canUseDriveState()) {
     try {
       await writeStateToDrive(state);
-      stateLogger.info("Challenge state written to Drive", {
-        challengeId: state.id,
-        challengeNumber: state.challengeNumber
-      });
       return;
     } catch (error) {
       stateLogger.error("Failed to write challenge state to Drive", {
-        errorMessage: error?.message,
-        errorStack: error?.stack
+        errorMessage: error?.message
       });
     }
   }
@@ -383,12 +409,6 @@ async function buildHistoryEntry(state) {
 
 const handler = async (req, res) => {
   const logger = createRequestLogger(req, "challenge");
-  logger.info("Challenge request received");
-  logger.info("Challenge request headers summary", {
-    contentType: req.headers["content-type"] || null,
-    contentLength: req.headers["content-length"] || null,
-    hasAuthorizationHeader: Boolean(req.headers.authorization)
-  });
 
   const allowedOrigins = parseAllowedOrigins();
   if (!isOriginAllowed(req, allowedOrigins)) {
@@ -397,6 +417,14 @@ const handler = async (req, res) => {
   }
 
   applyOriginHeaders(req, res, allowedOrigins);
+
+  const rateLimitOptions =
+    req.method === "GET"
+      ? { scope: "challenge-read", limit: 60, windowMs: 60 * 1000 }
+      : { scope: "challenge-write", limit: 15, windowMs: 60 * 1000 };
+  if (!enforceRateLimit(req, res, logger, rateLimitOptions)) {
+    return;
+  }
 
   if (req.method === "GET") {
     const state = await readState();
@@ -415,18 +443,8 @@ const handler = async (req, res) => {
 
   try {
     const body = await readJsonBody(req);
-    logger.info("Challenge body parsed", summarizeBody(body));
 
     const currentState = await readState();
-    logger.info("Challenge current state loaded", {
-      challengeId: currentState.id,
-      challengeNumber: currentState.challengeNumber,
-      winner: currentState.winner,
-      roundClosedAt: currentState.roundClosedAt,
-      historyCount: Array.isArray(currentState.history) ? currentState.history.length : 0,
-      rankingsCount: Array.isArray(currentState.rankings) ? currentState.rankings.length : 0,
-      challengeFolderName: currentState.challengeFolderName
-    });
     const nextChallengeTitle = hasOwn(body, "challengeTitle")
       ? normalizeText(body.challengeTitle, currentState.challengeTitle)
       : currentState.challengeTitle;
@@ -449,14 +467,9 @@ const handler = async (req, res) => {
       challengeTitle: nextChallengeTitle,
       prize: nextPrize
     });
-    logger.info("Challenge derived next values", {
-      nextChallengeTitle,
-      nextPrize,
-      nextWinner,
-      resetGame,
-      contentChanged,
-      nextRankingsCount: Array.isArray(nextRankings) ? nextRankings.length : 0
-    });
+    if (VERBOSE_APP_LOGS) {
+      logger.info("Challenge payload accepted", summarizeBody(body));
+    }
 
     const nextState = {
       ...currentState,
@@ -506,28 +519,13 @@ const handler = async (req, res) => {
       }
     }
 
-    logger.info("Challenge next state prepared", {
-      challengeId: nextState.id,
-      challengeNumber: nextState.challengeNumber,
-      winner: nextState.winner,
-      roundClosedAt: nextState.roundClosedAt,
-      historyCount: Array.isArray(nextState.history) ? nextState.history.length : 0,
-      rankingsCount: Array.isArray(nextState.rankings) ? nextState.rankings.length : 0,
-      challengeFolderName: nextState.challengeFolderName,
-      updatedAt: nextState.updatedAt
-    });
     await writeState(nextState);
-    logger.info("Challenge updated successfully", {
-      challengeId: nextState.id,
-      rankingsCount: nextState.rankings.length
-    });
 
     return res.status(200).json({ ok: true, challenge: nextState });
   } catch (error) {
     logger.error("Challenge update failed", {
       errorMessage: error?.message,
       errorName: error?.name,
-      errorStack: error?.stack,
       requestBodyType: typeof req.body
     });
     return res.status(500).json({

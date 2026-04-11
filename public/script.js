@@ -47,6 +47,7 @@ let authToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "";
 let appStarted = false;
 let gallerySlideshowEnabled = true;
 let galleryCycleInFlight = false;
+let galleryObjectUrls = [];
 let uploadConfig = {
   maxFiles: 10,
   maxSizeMb: 15,
@@ -122,6 +123,23 @@ async function apiFetch(url, options = {}) {
   return response;
 }
 
+function revokeGalleryObjectUrls() {
+  galleryObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  galleryObjectUrls = [];
+}
+
+async function loadProtectedImageUrl(mediaSrc) {
+  const response = await apiFetch(mediaSrc, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Falha ao carregar imagem protegida.");
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  galleryObjectUrls.push(objectUrl);
+  return objectUrl;
+}
+
 async function startAppAfterAuth() {
   if (appStarted) {
     return;
@@ -175,17 +193,19 @@ async function loadGallerySlides() {
       return false;
     }
 
-    const mappedSlides = payload.photos.map((photo, index) => {
+    revokeGalleryObjectUrls();
+
+    const mappedSlides = await Promise.all(payload.photos.map(async (photo, index) => {
+      if (!photo?.src) {
+        return null;
+      }
+
       const article = document.createElement("article");
       article.className = `slide${index === 0 ? " is-active" : ""}`;
       article.setAttribute("data-slide", "");
 
       const image = document.createElement("img");
-      const mediaSrc = photo.src || "";
-      const separator = mediaSrc.includes("?") ? "&" : "?";
-      image.src = authToken
-        ? `${mediaSrc}${separator}authToken=${encodeURIComponent(authToken)}`
-        : mediaSrc;
+      image.src = await loadProtectedImageUrl(photo.src);
       image.alt = photo.alt || "Foto do casamento";
 
       article.appendChild(image);
@@ -198,10 +218,15 @@ async function loadGallerySlides() {
       }
 
       return article;
-    });
+    }));
+
+    const validSlides = mappedSlides.filter(Boolean);
+    if (validSlides.length === 0) {
+      return false;
+    }
 
     slideshow.innerHTML = "";
-    for (const node of mappedSlides) {
+    for (const node of validSlides) {
       slideshow.appendChild(node);
     }
 

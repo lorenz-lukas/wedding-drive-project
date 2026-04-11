@@ -6,7 +6,9 @@ const {
   runDriveOperation
 } = require("../lib/_drive");
 const challengeHandler = require("./challenge");
+const { requireAuth } = require("../lib/auth");
 const { createRequestLogger } = require("../lib/_logger");
+const { enforceRateLimit } = require("../lib/rate-limit");
 
 const CHALLENGE_FOLDER_NAME = "desafios";
 
@@ -21,7 +23,6 @@ function extractSubmitterName(fileName, challengeNumber) {
 
 module.exports = async (req, res) => {
   const logger = createRequestLogger(req, "challenge-submissions");
-  logger.info("Challenge submissions request received");
 
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -37,6 +38,14 @@ module.exports = async (req, res) => {
   }
 
   applyOriginHeaders(req, res, allowedOrigins);
+
+  if (!enforceRateLimit(req, res, logger, { scope: "challenge-submissions", limit: 30, windowMs: 60 * 1000 })) {
+    return;
+  }
+
+  if (!requireAuth(req, res)) {
+    return;
+  }
 
   try {
     const challenge = await challengeHandler.readState();

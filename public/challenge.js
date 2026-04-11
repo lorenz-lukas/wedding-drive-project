@@ -16,6 +16,7 @@ const challengeSyncChannel =
   typeof window !== "undefined" && "BroadcastChannel" in window
     ? new BroadcastChannel("casamento_challenge_sync")
     : null;
+const challengeMediaObjectUrls = new Set();
 
 function getAuthToken() {
   try {
@@ -36,6 +37,41 @@ function saveAuthToken(token) {
   } catch {}
 }
 
+function revokeObjectUrls(urlSet) {
+  urlSet.forEach((url) => URL.revokeObjectURL(url));
+  urlSet.clear();
+}
+
+async function fetchWithOptionalAuth(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  const token = getAuthToken();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  return fetch(url, {
+    ...options,
+    headers
+  });
+}
+
+async function fetchProtectedImageUrl(url, urlSet) {
+  const response = await fetchWithOptionalAuth(url, { cache: "no-store" });
+  if (response.status === 401) {
+    openAuthModal();
+    throw new Error("Sessao expirada. Entre novamente.");
+  }
+  if (!response.ok) {
+    throw new Error("Falha ao carregar imagem protegida.");
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  urlSet.add(objectUrl);
+  return objectUrl;
+}
+
 function openAuthModal() {
   if (!authModalShell) return;
   authModalShell.classList.remove("hidden");
@@ -52,16 +88,109 @@ function closeAuthModal() {
   }
 }
 
+function formatApiErrorDetails(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => formatApiErrorDetails(item)).filter(Boolean).join(" ");
+  }
+
+  if (typeof value === "object") {
+    if (typeof value.message === "string" && value.message.trim()) {
+      return value.message;
+    }
+
+    if (typeof value.error === "string" && value.error.trim()) {
+      return value.error;
+    }
+
+    if (value.error && typeof value.error === "object") {
+      const nestedError = formatApiErrorDetails(value.error);
+      if (nestedError) {
+        return nestedError;
+      }
+    }
+
+    if (typeof value.details === "string" && value.details.trim()) {
+      return value.details;
+    }
+
+    if (value.details && typeof value.details === "object") {
+      const nestedDetails = formatApiErrorDetails(value.details);
+      if (nestedDetails) {
+        return nestedDetails;
+      }
+    }
+
+    const flattenedValues = Object.values(value)
+      .map((entry) => formatApiErrorDetails(entry))
+      .filter(Boolean);
+
+    return flattenedValues.join(" ");
+  }
+
+  return String(value);
+}
+
+async function readResponsePayload(response) {
+  const rawText = await response.text();
+  let payload = {};
+
+  try {
+    payload = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    payload = {};
+  }
+
+  return {
+    rawText,
+    payload
+  };
+}
+
+function getFriendlyHttpError(response, payload, fallbackMessage, rawText = "") {
+  if (response.status === 401) {
+    openAuthModal();
+    return "Sessao expirada. Entre novamente.";
+  }
+
+  if (response.status === 429) {
+    return "Muitas tentativas em pouco tempo. Aguarde um instante e tente novamente.";
+  }
+
+  const detail = [
+    formatApiErrorDetails(payload?.error),
+    formatApiErrorDetails(payload?.details),
+    !payload?.error && rawText ? rawText : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (response.status === 403 && !detail) {
+    return "Acesso negado. Verifique a autenticacao e as regras de acesso configuradas. HTTP 403.";
+  }
+
+  const statusLine = `HTTP ${response.status}.`;
+  const requestIdLine = payload?.requestId ? ` Request ID: ${payload.requestId}.` : "";
+  return (detail || fallbackMessage) + ` ${statusLine}${requestIdLine}`;
+}
+
 async function login(username, password) {
   const response = await fetch("/api/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password })
   });
-  const payload = await response.json();
+  const { rawText, payload } = await readResponsePayload(response);
 
   if (!response.ok) {
-    throw new Error(payload.error || "Credenciais invalidas.");
+    throw new Error(getFriendlyHttpError(response, payload, "Credenciais invalidas.", rawText));
   }
 
   return payload.token;
@@ -100,26 +229,10 @@ async function challengeRequest(method, body) {
     body: body ? JSON.stringify(body) : undefined
   });
 
-  const rawText = await response.text();
-  let payload = {};
-  try {
-    payload = rawText ? JSON.parse(rawText) : {};
-  } catch {
-    payload = {};
-  }
-
-  if (response.status === 401) {
-    openAuthModal();
-    throw new Error("Sessao expirada. Entre novamente.");
-  }
+  const { rawText, payload } = await readResponsePayload(response);
 
   if (!response.ok) {
-    const statusLine = `HTTP ${response.status}.`;
-    const requestIdLine = payload.requestId ? ` Request ID: ${payload.requestId}.` : "";
-    const detail = [payload.error, payload.details, !payload.error && rawText ? rawText : ""]
-      .filter(Boolean)
-      .join(" ");
-    throw new Error((detail || "Falha ao salvar desafio.") + ` ${statusLine}${requestIdLine}`);
+    throw new Error(getFriendlyHttpError(response, payload, "Falha ao salvar desafio.", rawText));
   }
 
   writeCachedChallengeState(payload.challenge);
@@ -144,25 +257,10 @@ async function challengeFinalizeRequest(body) {
     body: body ? JSON.stringify(body) : undefined
   });
 
-  const rawText = await response.text();
-  let payload = {};
-  try {
-    payload = rawText ? JSON.parse(rawText) : {};
-  } catch {
-    payload = {};
-  }
-
-  if (response.status === 401) {
-    openAuthModal();
-    throw new Error("Sessao expirada. Entre novamente.");
-  }
+  const { rawText, payload } = await readResponsePayload(response);
 
   if (!response.ok) {
-    const requestIdLine = payload.requestId ? ` Request ID: ${payload.requestId}.` : "";
-    const errorMessage = [payload.error, payload.details, !payload.error && rawText ? rawText : ""]
-      .filter(Boolean)
-      .join(" ");
-    throw new Error((errorMessage || "Falha ao gerar CSV dos desafios.") + requestIdLine);
+    throw new Error(getFriendlyHttpError(response, payload, "Falha ao gerar CSV dos desafios.", rawText));
   }
 
   return payload;
@@ -170,10 +268,10 @@ async function challengeFinalizeRequest(body) {
 
 async function fetchChallenge() {
   const response = await fetch("/api/challenge", { cache: "no-store" });
-  const payload = await response.json();
+  const { rawText, payload } = await readResponsePayload(response);
 
   if (!response.ok) {
-    throw new Error(payload.error || "Falha ao carregar desafio.");
+    throw new Error(getFriendlyHttpError(response, payload, "Falha ao carregar desafio.", rawText));
   }
 
   if (isChallengeEffectivelyEmpty(payload.challenge)) {
@@ -188,11 +286,11 @@ async function fetchChallenge() {
 }
 
 async function fetchChallengeSubmissions() {
-  const response = await fetch("/api/challenge-submissions-feed", { cache: "no-store" });
-  const payload = await response.json().catch(() => ({}));
+  const response = await fetchWithOptionalAuth("/api/challenge-submissions-feed", { cache: "no-store" });
+  const { rawText, payload } = await readResponsePayload(response);
 
   if (!response.ok) {
-    throw new Error(payload.error || "Falha ao carregar imagens do desafio.");
+    throw new Error(getFriendlyHttpError(response, payload, "Falha ao carregar imagens do desafio.", rawText));
   }
 
   return payload;
@@ -323,6 +421,7 @@ function buildRankingRows(container, rankings, options = {}) {
 function renderChallengeGallery(container, photos) {
   if (!container) return;
   container.innerHTML = "";
+  revokeObjectUrls(challengeMediaObjectUrls);
   const photoCount = photos?.length || 0;
   
   const minSize =
@@ -352,8 +451,16 @@ function renderChallengeGallery(container, photos) {
 
     const image = document.createElement("img");
     image.className = "challenge-gallery-image";
-    image.src = photo.src;
     image.alt = photo.guestName ? `Imagem enviada por ${photo.guestName}` : "Imagem do desafio";
+    if (photo?.src) {
+      fetchProtectedImageUrl(photo.src, challengeMediaObjectUrls)
+        .then((objectUrl) => {
+          image.src = objectUrl;
+        })
+        .catch(() => {
+          image.alt = "Imagem protegida indisponivel.";
+        });
+    }
 
     const caption = document.createElement("p");
     caption.className = "challenge-gallery-caption";
@@ -685,6 +792,10 @@ async function initCreatePage() {
   });
 
   window.setInterval(async () => {
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
     try {
       const challenge = await fetchChallenge();
       applyChallengeToAdmin(challenge);
@@ -904,6 +1015,10 @@ async function initBoardPage() {
   });
 
   window.setInterval(async () => {
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
     try {
       await refreshBoard(false);
       await refreshGallery();
@@ -1018,6 +1133,10 @@ function initUploadPage() {
   });
 
   async function checkChallengeStatus() {
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
     try {
       const challenge = await fetchChallenge();
       currentChallenge = challenge;

@@ -1,11 +1,12 @@
 const {
   applyOriginHeaders,
-  isOriginAllowed,
   parseAllowedOrigins,
   resolveDriveFileId,
   runDriveOperation
 } = require("../lib/_drive");
+const { requireAuth } = require("../lib/auth");
 const { createRequestLogger } = require("../lib/_logger");
+const { enforceRateLimit } = require("../lib/rate-limit");
 
 function getFileIdFromRequest(req) {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
@@ -14,7 +15,6 @@ function getFileIdFromRequest(req) {
 
 module.exports = async (req, res) => {
   const logger = createRequestLogger(req, "challenge-submission-media");
-  logger.info("Challenge submission media request received");
 
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -22,14 +22,15 @@ module.exports = async (req, res) => {
   }
 
   const allowedOrigins = parseAllowedOrigins();
-  if (req.headers.origin && !isOriginAllowed(req, allowedOrigins)) {
-    logger.warn("Challenge submission media rejected due to unauthorized origin", {
-      allowedOriginsCount: allowedOrigins.length
-    });
-    return res.status(403).json({ error: "Origem nao autorizada." });
+  applyOriginHeaders(req, res, allowedOrigins);
+
+  if (!enforceRateLimit(req, res, logger, { scope: "challenge-submission-media", limit: 60, windowMs: 60 * 1000 })) {
+    return;
   }
 
-  applyOriginHeaders(req, res, allowedOrigins);
+  if (!requireAuth(req, res)) {
+    return;
+  }
 
   try {
     const fileId = resolveDriveFileId(getFileIdFromRequest(req));

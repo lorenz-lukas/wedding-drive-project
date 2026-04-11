@@ -7,6 +7,7 @@ const {
 } = require("../lib/_drive");
 const { requireAuth } = require("../lib/auth");
 const { createRequestLogger } = require("../lib/_logger");
+const { enforceRateLimit } = require("../lib/rate-limit");
 
 function getFileIdFromRequest(req) {
   if (req.query && req.query.fileId) {
@@ -19,10 +20,8 @@ function getFileIdFromRequest(req) {
 
 module.exports = async (req, res) => {
   const logger = createRequestLogger(req, "gallery-media");
-  logger.info("Gallery media request received");
 
   if (req.method !== "GET") {
-    logger.warn("Gallery media rejected due to invalid method");
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Metodo nao permitido." });
   }
@@ -35,8 +34,11 @@ module.exports = async (req, res) => {
 
   applyOriginHeaders(req, res, allowedOrigins);
 
+  if (!enforceRateLimit(req, res, logger, { scope: "gallery-media", limit: 120, windowMs: 60 * 1000 })) {
+    return;
+  }
+
   if (!requireAuth(req, res)) {
-    logger.warn("Gallery media rejected because authentication failed");
     return;
   }
 
@@ -47,7 +49,6 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: "fileId obrigatorio." });
     }
 
-    logger.info("Streaming gallery media from Drive", { fileId });
     const result = await runDriveOperation(
       (drive) =>
         drive.files.get(
@@ -65,7 +66,6 @@ module.exports = async (req, res) => {
 
     const mimeType = result.headers["content-type"] || "application/octet-stream";
     res.setHeader("Content-Type", mimeType);
-    logger.info("Gallery media stream started", { fileId, mimeType });
     result.data.pipe(res);
   } catch (error) {
     logger.error("Gallery media loading failed", {

@@ -1,7 +1,16 @@
-const { createSessionToken, validateCredentials } = require("../lib/auth");
+const { createSessionToken, hasConfiguredTokenSecret, validateCredentials } = require("../lib/auth");
 const { createRequestLogger } = require("../lib/_logger");
+const { enforceRateLimit } = require("../lib/rate-limit");
 
 async function readJsonBody(req) {
+  if (req.body && typeof req.body === "object") {
+    return req.body;
+  }
+
+  if (typeof req.body === "string") {
+    return req.body ? JSON.parse(req.body) : {};
+  }
+
   const chunks = [];
 
   for await (const chunk of req) {
@@ -14,19 +23,25 @@ async function readJsonBody(req) {
 
 module.exports = async (req, res) => {
   const logger = createRequestLogger(req, "login");
-  logger.info("Login request received");
 
   if (req.method !== "POST") {
-    logger.warn("Login rejected due to invalid method");
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Metodo nao permitido." });
   }
 
+  if (!enforceRateLimit(req, res, logger, { scope: "login", limit: 10, windowMs: 60 * 1000 })) {
+    return;
+  }
+
   try {
+    if (!hasConfiguredTokenSecret()) {
+      logger.error("Login unavailable because AUTH_TOKEN_SECRET is missing");
+      return res.status(503).json({ error: "Autenticacao indisponivel." });
+    }
+
     const payload = await readJsonBody(req);
     const username = String(payload.username || "").trim();
     const password = String(payload.password || "");
-    logger.info("Login payload parsed", { username, passwordProvided: Boolean(password) });
 
     if (!validateCredentials(username, password)) {
       logger.warn("Login rejected because credentials are invalid", { username });
@@ -34,7 +49,6 @@ module.exports = async (req, res) => {
     }
 
     const token = createSessionToken(username);
-    logger.info("Login completed successfully", { username });
 
     return res.status(200).json({
       ok: true,

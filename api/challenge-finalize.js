@@ -11,8 +11,10 @@ const {
 const challengeHandler = require("./challenge");
 const { requireAuth } = require("../lib/auth");
 const { createRequestLogger } = require("../lib/_logger");
+const { enforceRateLimit } = require("../lib/rate-limit");
 
 const CHALLENGE_FOLDER_NAME = "desafios";
+const VERBOSE_APP_LOGS = process.env.NODE_ENV !== "production" || process.env.ENABLE_VERBOSE_APP_LOGS === "true";
 
 function normalizeName(value) {
   return String(value || "")
@@ -163,12 +165,6 @@ async function listChallengePhotoNames(drive, folderId, challengeNumber) {
 
 module.exports = async (req, res) => {
   const logger = createRequestLogger(req, "challenge-finalize");
-  logger.info("Challenge finalize request received");
-  logger.info("Challenge finalize headers summary", {
-    contentType: req.headers["content-type"] || null,
-    contentLength: req.headers["content-length"] || null,
-    hasAuthorizationHeader: Boolean(req.headers.authorization)
-  });
 
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -185,6 +181,10 @@ module.exports = async (req, res) => {
 
   applyOriginHeaders(req, res, allowedOrigins);
 
+  if (!enforceRateLimit(req, res, logger, { scope: "challenge-finalize", limit: 8, windowMs: 60 * 1000 })) {
+    return;
+  }
+
   if (!requireAuth(req, res)) {
     logger.warn("Challenge finalize rejected because authentication failed");
     return;
@@ -192,53 +192,26 @@ module.exports = async (req, res) => {
 
   try {
     validateRequiredEnv();
-    logger.info("Challenge finalize env validated", {
-      hasDriveFolderId: Boolean(process.env.GOOGLE_DRIVE_FOLDER_ID),
-      hasGuestListFileId: Boolean(process.env.GUEST_LIST_FILE_ID)
-    });
 
     const requestBody = await readJsonBody(req);
-    logger.info("Challenge finalize body parsed", {
-      keys: Object.keys(requestBody || {}),
-      finish: Boolean(requestBody?.finish),
-      winner: String(requestBody?.winner || "").slice(0, 120)
-    });
+    if (VERBOSE_APP_LOGS) {
+      logger.info("Challenge finalize body parsed", {
+        keys: Object.keys(requestBody || {}),
+        finish: Boolean(requestBody?.finish),
+        winner: String(requestBody?.winner || "").slice(0, 120)
+      });
+    }
 
     const challenge = await challengeHandler.readState();
     const finish = Boolean(requestBody?.finish);
     const winner = String(requestBody?.winner || "").trim() || String(challenge.winner || "").trim();
-    logger.info("Challenge finalize payload parsed", {
-      finish,
-      challengeId: challenge.id,
-      challengeNumber: challenge.challengeNumber,
-      challengeTitle: challenge.challengeTitle,
-      prize: challenge.prize,
-      winner,
-      rankingsCount: Array.isArray(challenge.rankings) ? challenge.rankings.length : 0,
-      historyCount: Array.isArray(challenge.history) ? challenge.history.length : 0,
-      challengeFolderName: challenge.challengeFolderName
-    });
 
     const rootFolderId = resolveDriveFileId(process.env.GOOGLE_DRIVE_FOLDER_ID);
-    logger.info("Challenge finalize resolved root folder id", {
-      hasRootFolderId: Boolean(rootFolderId),
-      rootFolderIdPreview: rootFolderId ? `${rootFolderId.slice(0, 6)}...${rootFolderId.slice(-4)}` : null
-    });
     const challengeFolder = await ensureNamedFolder(rootFolderId, challenge.challengeFolderName || CHALLENGE_FOLDER_NAME);
-    logger.info("Challenge finalize resolved challenge folder", {
-      challengeFolderId: challengeFolder.id,
-      challengeFolderName: challengeFolder.name,
-      challengeFolderCreated: challengeFolder.created
-    });
     const photoNames = await runDriveOperation(
         (drive) => listChallengePhotoNames(drive, challengeFolder.id, challenge.challengeNumber),
         { operationName: "challenge-finalize-list-photos" }
       );
-    logger.info("Challenge finalize loaded round photos", {
-      challengeNumber: challenge.challengeNumber,
-      photoCount: photoNames.length,
-      photoSamples: photoNames.slice(0, 5)
-    });
 
     const participantNames = Array.from(
       new Map(
@@ -250,11 +223,6 @@ module.exports = async (req, res) => {
           .filter(([normalizedName, guestName]) => normalizedName && guestName)
       ).values()
     );
-    logger.info("Challenge finalize extracted participants", {
-      participantCount: participantNames.length,
-      participantsSample: participantNames.slice(0, 8)
-    });
-
     const rankingMap = new Map(
       (challenge.rankings || [])
         .filter((entry) => entry?.name)
@@ -283,11 +251,6 @@ module.exports = async (req, res) => {
       }
       return left.name.localeCompare(right.name, "pt-BR");
     });
-    logger.info("Challenge finalize computed rankings", {
-      nextRankingsCount: nextRankings.length,
-      topRankings: nextRankings.slice(0, 5)
-    });
-
     const closedAt = new Date().toISOString();
     const nextHistoryEntry = {
       id: `${challenge.challengeNumber}-${closedAt}`,
@@ -338,15 +301,6 @@ module.exports = async (req, res) => {
           updatedAt: closedAt
         };
 
-    logger.info("Challenge finalize writing next state", {
-      finish,
-      nextChallengeNumber: stateToWrite.challengeNumber,
-      nextChallengeTitle: stateToWrite.challengeTitle,
-      nextPrize: stateToWrite.prize,
-      nextRoundClosedAt: stateToWrite.roundClosedAt,
-      nextHistoryCount: Array.isArray(stateToWrite.history) ? stateToWrite.history.length : 0,
-      nextChallengeFolderName: stateToWrite.challengeFolderName
-    });
     await challengeHandler.writeState(stateToWrite);
 
     const finalizedChallenge = {
@@ -360,21 +314,11 @@ module.exports = async (req, res) => {
     const csvContent = buildCsvContent(finalizedChallenge, []);
     const timestamp = new Date().toISOString().replace(/[.:]/g, "-");
     const fileName = `desafios_${timestamp}.csv`;
-    logger.info("Challenge finalize built CSV content", {
-      fileName,
-      csvLength: csvContent.length,
-      csvLineCount: csvContent.split("\n").filter(Boolean).length,
-      finalizedHistoryCount: finalizedChallenge.history.length
-    });
 
     let created = null;
     let csvErrorMessage = "";
 
     try {
-      logger.info("Challenge finalize creating CSV on Drive", {
-        fileName,
-        parentFolderIdPreview: rootFolderId ? `${rootFolderId.slice(0, 6)}...${rootFolderId.slice(-4)}` : null
-      });
       created = await runDriveOperation(
         (drive) =>
           drive.files.create({
@@ -397,16 +341,12 @@ module.exports = async (req, res) => {
         errorMessage: error?.message,
         errorCode: error?.code,
         errorStatus: error?.response?.status,
-        errorData: error?.response?.data,
         fileName,
-        rootFolderIdPreview: rootFolderId ? `${rootFolderId.slice(0, 6)}...${rootFolderId.slice(-4)}` : null,
-        challengeFolderId: challengeFolder.id,
-        csvLength: csvContent.length,
         finish
       });
     }
 
-    if (created?.data) {
+    if (VERBOSE_APP_LOGS && created?.data) {
       logger.info("Challenge CSV created successfully", {
         csvFileId: created.data.id,
         csvFileName: created.data.name,
@@ -425,10 +365,8 @@ module.exports = async (req, res) => {
     logger.error("Challenge finalize failed", {
       errorMessage: error?.message,
       errorName: error?.name,
-      errorStack: error?.stack,
       errorCode: error?.code,
-      errorStatus: error?.response?.status,
-      errorData: error?.response?.data
+      errorStatus: error?.response?.status
     });
     return res.status(500).json({
       error: "Falha ao gerar arquivo CSV dos desafios.",

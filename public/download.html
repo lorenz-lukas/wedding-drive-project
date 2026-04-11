@@ -176,7 +176,11 @@
           downloadStatus.classList.remove("error");
 
           try {
-            const res = await fetch(`/api/download?authToken=${encodeURIComponent(token)}`);
+            const res = await fetch("/api/download", {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            });
 
             if (res.status === 401) {
               saveToken("");

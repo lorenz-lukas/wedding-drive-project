@@ -8,6 +8,7 @@ const {
 } = require("../lib/_drive");
 const { requireAuth } = require("../lib/auth");
 const { createRequestLogger } = require("../lib/_logger");
+const { enforceRateLimit } = require("../lib/rate-limit");
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const IMAGE_MIME_TYPES = new Set([
@@ -80,10 +81,8 @@ async function collectAllImages(drive, rootFolderId) {
 
 module.exports = async (req, res) => {
   const logger = createRequestLogger(req, "download");
-  logger.info("Download request received");
 
   if (req.method !== "GET") {
-    logger.warn("Download rejected due to invalid method");
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Metodo nao permitido." });
   }
@@ -96,20 +95,21 @@ module.exports = async (req, res) => {
 
   applyOriginHeaders(req, res, allowedOrigins);
 
+  if (!enforceRateLimit(req, res, logger, { scope: "download", limit: 6, windowMs: 5 * 60 * 1000 })) {
+    return;
+  }
+
   if (!requireAuth(req, res)) {
-    logger.warn("Download rejected because authentication failed");
     return;
   }
 
   try {
     const rootFolderId = resolveDriveFileId(process.env.GOOGLE_DRIVE_FOLDER_ID);
-    logger.info("Collecting images for download", { rootFolderId });
 
     const images = await runDriveOperation(
       (drive) => collectAllImages(drive, rootFolderId),
       { operationName: "download-collect-images" }
     );
-    logger.info("Images collected", { count: images.length });
 
     res.setHeader("Content-Type", "application/zip");
     res.setHeader(
@@ -148,7 +148,6 @@ module.exports = async (req, res) => {
     }
 
     await archive.finalize();
-    logger.info("Download ZIP finalized", { fileCount: images.length });
   } catch (error) {
     logger.error("Download failed", {
       errorMessage: error?.message,

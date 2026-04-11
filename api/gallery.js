@@ -7,6 +7,7 @@ const {
 } = require("../lib/_drive");
 const { requireAuth } = require("../lib/auth");
 const { createRequestLogger } = require("../lib/_logger");
+const { enforceRateLimit } = require("../lib/rate-limit");
 
 const DEFAULT_MAX_GALLERY_ITEMS = 500;
 const FOLDER_MIME = "application/vnd.google-apps.folder";
@@ -89,10 +90,8 @@ async function collectGalleryPhotos(rootFolderId) {
 
 module.exports = async (req, res) => {
   const logger = createRequestLogger(req, "gallery");
-  logger.info("Gallery request received");
 
   if (req.method !== "GET") {
-    logger.warn("Gallery rejected due to invalid method");
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Metodo nao permitido." });
   }
@@ -105,17 +104,17 @@ module.exports = async (req, res) => {
 
   applyOriginHeaders(req, res, allowedOrigins);
 
+  if (!enforceRateLimit(req, res, logger, { scope: "gallery", limit: 20, windowMs: 60 * 1000 })) {
+    return;
+  }
+
   if (!requireAuth(req, res)) {
-    logger.warn("Gallery rejected because authentication failed");
     return;
   }
 
   try {
     const rootFolderId = resolveDriveFileId(process.env.GOOGLE_DRIVE_FOLDER_ID);
-    logger.info("Collecting gallery photos", { rootFolderId });
     const photos = await collectGalleryPhotos(rootFolderId);
-
-    logger.info("Gallery loaded successfully", { rootFolderId, photoCount: photos.length });
 
     return res.status(200).json({
       ok: true,
