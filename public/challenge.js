@@ -1171,12 +1171,9 @@ function initUploadPage() {
   const photoInput = document.getElementById("challengePhoto");
   const status = document.getElementById("challenge-upload-status");
   const submit = document.getElementById("challenge-upload-submit");
-  let currentChallenge = null;
-
-  function setUploadButtonLabel(challenge) {
+  function setUploadButtonLabel() {
     if (!submit) return;
-    const challengeNumber = challenge?.challengeNumber || 1;
-    submit.textContent = `Enviar imagem (Rodada ${challengeNumber})`;
+    submit.textContent = "Enviar imagem";
   }
 
   if (nameInput) {
@@ -1227,20 +1224,7 @@ function initUploadPage() {
     }
   });
 
-  async function checkChallengeStatus() {
-    if (document.visibilityState !== "visible") {
-      return;
-    }
-
-    try {
-      const challenge = await fetchChallenge();
-      currentChallenge = challenge;
-      setUploadButtonLabel(challenge);
-    } catch {}
-  }
-
-  checkChallengeStatus();
-  window.setInterval(checkChallengeStatus, UPLOAD_CHALLENGE_POLL_INTERVAL_MS);
+  setUploadButtonLabel();
 }
 
 if (pageMode === "create") {

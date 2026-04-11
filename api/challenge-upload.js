@@ -14,7 +14,7 @@ const {
   sanitizeGuestName,
   validateRequiredEnv
 } = require("../lib/_drive");
-const challengeHandler = require("./challenge");
+const challengeState = require("../lib/challenge-state");
 
 const MAX_FILE_SIZE_MB = 15;
 const CHALLENGE_FOLDER_NAME = "desafios";
@@ -73,7 +73,7 @@ const handler = async (req, res) => {
       return res.status(403).json({ error: "Nome nao encontrado na lista de convidados." });
     }
 
-    const challenge = await challengeHandler.readState();
+    const challenge = await challengeState.readState();
     const challengeFolder = await ensureNamedFolder(
       process.env.GOOGLE_DRIVE_FOLDER_ID,
       challenge.challengeFolderName || CHALLENGE_FOLDER_NAME
@@ -158,7 +158,7 @@ async function cleanupUploadedFile(file) {
 async function uploadToDrive(authClient, folderId, file, guestName) {
   const drive = google.drive({ version: "v3", auth: authClient });
   const extension = getExtensionFromFile(file);
-  const challenge = await challengeHandler.readState();
+  const challenge = await challengeState.readState();
   const challengeNumber = Number(challenge.challengeNumber || 1);
   const safeName = sanitizeGuestName(guestName).replace(/\s+/g, "_") || "convidado";
   const submissionMarker = `${safeName}_${challengeNumber}_desafio_`;

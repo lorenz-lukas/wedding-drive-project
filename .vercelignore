@@ -5,5 +5,6 @@ public/desafios.html
 public/challenges/create.html
 public/desafios/criar.html
 api/challenge-finalize.js
+api/challenge.js
 api/challenge-submissions.js
 api/challenge-submission-media.js

@@ -8,7 +8,6 @@ const galleryHandler = require("./api/gallery");
 const galleryMediaHandler = require("./api/gallery-media");
 const loginHandler = require("./api/login");
 const downloadHandler = require("./api/download");
-const challengeHandler = require("./api/challenge");
 const challengeUploadHandler = require("./api/challenge-upload");
 
 function optionalRequire(modulePath) {
@@ -22,6 +21,7 @@ function optionalRequire(modulePath) {
   }
 }
 
+const challengeHandler = optionalRequire("./api/challenge");
 const challengeFinalizeHandler = optionalRequire("./api/challenge-finalize");
 const challengeSubmissionsHandler = optionalRequire("./api/challenge-submissions");
 const challengeSubmissionMediaHandler = optionalRequire("./api/challenge-submission-media");
