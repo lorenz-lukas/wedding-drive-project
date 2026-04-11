@@ -2,8 +2,14 @@ const AUTH_TOKEN_KEY = "casamento_auth_token";
 const CHALLENGE_NAME_CACHE_KEY = "casamento_desafio_nome";
 const CHALLENGE_SYNC_KEY = "casamento_challenge_sync";
 const CHALLENGE_STATE_CACHE_KEY = "casamento_challenge_state_cache";
-const DEFAULT_CHALLENGE_POLL_INTERVAL_MS = parseInt(window.CHALLENGE_POLL_INTERVAL_MS || "120000", 10);
-const UPLOAD_CHALLENGE_POLL_INTERVAL_MS = parseInt(window.CHALLENGE_UPLOAD_POLL_INTERVAL_MS || "180000", 10);
+const DEFAULT_CHALLENGE_POLL_INTERVAL_MS = Math.max(
+  120000,
+  parseInt(window.CHALLENGE_POLL_INTERVAL_MS || "120000", 10)
+);
+const UPLOAD_CHALLENGE_POLL_INTERVAL_MS = Math.max(
+  300000,
+  parseInt(window.CHALLENGE_UPLOAD_POLL_INTERVAL_MS || "300000", 10)
+);
 
 const pageMode = document.body?.dataset?.challengePage || "";
 
@@ -644,6 +650,7 @@ async function initCreatePage() {
   };
   let isTitleDirty = false;
   let isPrizeDirty = false;
+  let keepDraftAfterSave = false;
 
   function syncDraftFromInputs() {
     localDraft.challengeTitle = titleInput?.value || "";
@@ -656,6 +663,19 @@ async function initCreatePage() {
     syncDraftFromInputs();
   }
 
+  function startFreshDraft() {
+    keepDraftAfterSave = true;
+    isTitleDirty = true;
+    isPrizeDirty = true;
+    if (titleInput) {
+      titleInput.value = "";
+    }
+    if (prizeInput) {
+      prizeInput.value = "";
+    }
+    syncDraftFromInputs();
+  }
+
   function applyChallengeToAdmin(challenge) {
     const isSameRound = currentChallenge && Number(currentChallenge.challengeNumber) === Number(challenge.challengeNumber);
     if (!isSameRound) {
@@ -665,10 +685,10 @@ async function initCreatePage() {
     if (roundNumberDisplay) {
       roundNumberDisplay.textContent = `- Rodada ${Number(challenge.challengeNumber || 1)}`;
     }
-    if (!isTitleDirty && document.activeElement !== titleInput) {
+    if (!keepDraftAfterSave && !isTitleDirty && document.activeElement !== titleInput) {
       titleInput.value = challenge.challengeTitle || "";
     }
-    if (!isPrizeDirty && document.activeElement !== prizeInput) {
+    if (!keepDraftAfterSave && !isPrizeDirty && document.activeElement !== prizeInput) {
       prizeInput.value = challenge.prize || "";
     }
     if (saveWinnerButton) {
@@ -716,11 +736,13 @@ async function initCreatePage() {
   }
 
   titleInput?.addEventListener("input", () => {
+    keepDraftAfterSave = false;
     isTitleDirty = true;
     syncDraftFromInputs();
   });
 
   prizeInput?.addEventListener("input", () => {
+    keepDraftAfterSave = false;
     isPrizeDirty = true;
     syncDraftFromInputs();
   });
@@ -770,6 +792,7 @@ async function initCreatePage() {
       resetDraftFlags();
       applyChallengeToAdmin(challenge);
       await refreshAdminSubmissions();
+      startFreshDraft();
       notifyChallengeUpdated("challenge-saved");
       setStatus(status, "Desafio salvo com sucesso.", "success");
     } catch (error) {

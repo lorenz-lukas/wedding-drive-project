@@ -115,8 +115,12 @@ function resolveStaticFile(urlPath) {
 }
 
 function renderHtmlTemplate(content) {
-  const challengePoll = String(process.env.CHALLENGE_POLL_INTERVAL_MS || "120000");
-  const uploadChallengePoll = String(process.env.CHALLENGE_UPLOAD_POLL_INTERVAL_MS || "180000");
+  const challengePoll = String(
+    Math.max(120000, Number(process.env.CHALLENGE_POLL_INTERVAL_MS || 120000))
+  );
+  const uploadChallengePoll = String(
+    Math.max(300000, Number(process.env.CHALLENGE_UPLOAD_POLL_INTERVAL_MS || 300000))
+  );
 
   return content
     .replace(/__CHALLENGE_POLL_INTERVAL_MS__/g, challengePoll)
