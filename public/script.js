@@ -1,6 +1,7 @@
 const form = document.getElementById("upload-form");
 const statusEl = document.getElementById("status");
 const submitButton = document.getElementById("submit-button");
+const debugUploadButton = document.getElementById("debug-upload-button");
 const guestNameInput = document.getElementById("guestName");
 const guestSummary = document.getElementById("guest-summary");
 const slides = Array.from(document.querySelectorAll("[data-slide]"));
@@ -819,6 +820,63 @@ async function uploadFiles(preparedFilesOverride) {
   }
 }
 
+async function uploadFilesDebug(preparedFilesOverride) {
+  const filesInput = document.getElementById("photos");
+  if (!form || !debugUploadButton || !filesInput) {
+    return;
+  }
+
+  isUploading = true;
+  debugUploadButton.disabled = true;
+  if (submitButton) {
+    submitButton.disabled = true;
+  }
+  setStatus("Enviando arquivos para diagnostico...", "info");
+
+  const preparedFiles = preparedFilesOverride || await prepareFilesForUpload(filesInput.files);
+  const formData = new FormData();
+  formData.append("guestName", guestNameInput ? guestNameInput.value.trim() : "debug");
+
+  for (const file of preparedFiles) {
+    formData.append("photos", file, file.name);
+  }
+
+  try {
+    const response = await fetch("/api/upload-debug", {
+      method: "POST",
+      body: formData
+    });
+
+    const { rawText, payload } = await readResponsePayload(response);
+
+    if (!response.ok) {
+      throw new Error(
+        getFriendlyUploadResponseError(
+          response,
+          payload,
+          rawText,
+          "Falha ao enviar no upload debug."
+        )
+      );
+    }
+
+    const fileCount = Number(payload.fileCount) || 0;
+    const firstFile = Array.isArray(payload.files) && payload.files.length > 0 ? payload.files[0] : null;
+    const firstFileSummary = firstFile
+      ? ` Primeiro arquivo: ${firstFile.originalFilename || "sem nome"} (${firstFile.mimetype || "sem tipo"}, ${firstFile.size || 0} bytes).`
+      : "";
+    setStatus(`Upload debug ok. ${fileCount} arquivo(s) chegaram na Function.${firstFileSummary}`, "success");
+  } catch (error) {
+    setStatus(error.message || "Falha no upload debug.", "error");
+  } finally {
+    isUploading = false;
+    debugUploadButton.disabled = false;
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
+  }
+}
+
 if (form) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -863,6 +921,24 @@ if (form) {
 
     setStatus("Confirme seu nome na lista para liberar o envio.", "info");
     openGuestModal();
+  });
+}
+
+if (debugUploadButton) {
+  debugUploadButton.addEventListener("click", async () => {
+    const filesInput = document.getElementById("photos");
+
+    if (!filesInput || !filesInput.files || filesInput.files.length === 0) {
+      setStatus("Selecione ao menos um arquivo para testar o upload debug.", "error");
+      return;
+    }
+
+    if (isUploading) {
+      return;
+    }
+
+    const preparedFiles = await prepareFilesForUpload(filesInput.files);
+    await uploadFilesDebug(preparedFiles);
   });
 }
 
