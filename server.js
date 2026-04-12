@@ -1,6 +1,45 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
+
+function loadLocalEnv() {
+  const envPath = path.join(__dirname, ".env");
+
+  if (!fs.existsSync(envPath)) {
+    return;
+  }
+
+  const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    if (!key || Object.prototype.hasOwnProperty.call(process.env, key)) {
+      continue;
+    }
+
+    let value = trimmed.slice(separatorIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    process.env[key] = value;
+  }
+}
+
+loadLocalEnv();
+
 const uploadHandler = require("./api/upload");
 const validateGuestHandler = require("./api/validate-guest");
 const configHandler = require("./api/config");
@@ -66,6 +105,8 @@ function resolveStaticFile(urlPath) {
   }
 
   if (
+    decodedPath === "/challenge-board" ||
+    decodedPath === "/challenge-board/" ||
     decodedPath === "/challenges" ||
     decodedPath === "/challenges/" ||
     decodedPath === "/desafios" ||
@@ -75,6 +116,8 @@ function resolveStaticFile(urlPath) {
   }
 
   if (
+    decodedPath === "/challenge-create" ||
+    decodedPath === "/challenge-create/" ||
     decodedPath === "/challenges/create" ||
     decodedPath === "/challenges/create/" ||
     decodedPath === "/desafios/criar" ||
@@ -84,6 +127,8 @@ function resolveStaticFile(urlPath) {
   }
 
   if (
+    decodedPath === "/challenge-upload" ||
+    decodedPath === "/challenge-upload/" ||
     decodedPath === "/challenges/upload" ||
     decodedPath === "/challenges/upload/" ||
     decodedPath === "/desafios/upload" ||

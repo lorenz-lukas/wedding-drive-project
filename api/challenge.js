@@ -158,7 +158,7 @@ function mergeWithDefaultState(parsed) {
     ...parsed,
     rankings: Array.isArray(parsed?.rankings) ? parsed.rankings : getDefaultState().rankings,
     history: Array.isArray(parsed?.history) ? parsed.history : [],
-    celebrationResult: parsed?.celebrationResult && typeof parsed.celebrationResult === "object"
+    celebrationResult: parsed?.celebrationResult && typeof parsed?.celebrationResult === "object"
       ? parsed.celebrationResult
       : null
   };
@@ -286,7 +286,7 @@ function normalizeRankings(rankings) {
   }
 
   const normalized = rankings
-    .map((entry, index) => ({
+    .map((entry) => ({
       name: String(entry?.name || "").trim(),
       points: Number(entry?.points) || 0
     }))

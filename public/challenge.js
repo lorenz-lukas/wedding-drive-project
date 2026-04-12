@@ -11,7 +11,10 @@ const UPLOAD_CHALLENGE_POLL_INTERVAL_MS = Math.max(
   parseInt(window.CHALLENGE_UPLOAD_POLL_INTERVAL_MS || "300000", 10)
 );
 
-const pageMode = document.body?.dataset?.challengePage || "";
+const pageMode =
+  document.body && document.body.dataset
+    ? document.body.dataset.challengePage || ""
+    : "";
 
 const authModalShell = document.getElementById("auth-modal-shell");
 const authForm = document.getElementById("auth-form");
@@ -97,7 +100,11 @@ function openAuthModal(message = "") {
   if (authStatus) {
     authStatus.textContent = message;
   }
-  window.setTimeout(() => authUsernameInput?.focus(), 30);
+  window.setTimeout(() => {
+    if (authUsernameInput) {
+      authUsernameInput.focus();
+    }
+  }, 30);
 }
 
 function closeAuthModal() {
@@ -186,9 +193,9 @@ function getFriendlyHttpError(response, payload, fallbackMessage, rawText = "") 
   }
 
   const detail = [
-    formatApiErrorDetails(payload?.error),
-    formatApiErrorDetails(payload?.details),
-    !payload?.error && rawText ? rawText : ""
+    formatApiErrorDetails(payload ? payload.error : ""),
+    formatApiErrorDetails(payload ? payload.details : ""),
+    !(payload && payload.error) && rawText ? rawText : ""
   ]
     .filter(Boolean)
     .join(" ");
@@ -198,7 +205,7 @@ function getFriendlyHttpError(response, payload, fallbackMessage, rawText = "") 
   }
 
   const statusLine = `HTTP ${response.status}.`;
-  const requestIdLine = payload?.requestId ? ` Request ID: ${payload.requestId}.` : "";
+  const requestIdLine = payload && payload.requestId ? ` Request ID: ${payload.requestId}.` : "";
   return (detail || fallbackMessage) + ` ${statusLine}${requestIdLine}`;
 }
 
@@ -225,7 +232,9 @@ if (authForm) {
     }
 
     try {
-      const token = await login(authUsernameInput?.value?.trim(), authPasswordInput?.value || "");
+      const username = authUsernameInput ? authUsernameInput.value.trim() : "";
+      const password = authPasswordInput ? authPasswordInput.value : "";
+      const token = await login(username, password);
       saveAuthToken(token);
       closeAuthModal();
     } catch (error) {
@@ -338,7 +347,7 @@ function normalizePersonName(value) {
 }
 
 function escapeHtml(value) {
-  return String(value ?? "")
+  return String(value == null ? "" : value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -357,7 +366,9 @@ function notifyChallengeUpdated(reason) {
   } catch {}
 
   try {
-    challengeSyncChannel?.postMessage(payload);
+    if (challengeSyncChannel) {
+      challengeSyncChannel.postMessage(payload);
+    }
   } catch {}
 }
 
@@ -448,7 +459,7 @@ function renderChallengeGallery(container, photos) {
   if (!container) return;
   container.innerHTML = "";
   revokeObjectUrls(challengeMediaObjectUrls);
-  const photoCount = photos?.length || 0;
+  const photoCount = photos ? photos.length || 0 : 0;
   
   const minSize =
     photoCount > 200 ? "2.5rem" :
@@ -478,7 +489,7 @@ function renderChallengeGallery(container, photos) {
     const image = document.createElement("img");
     image.className = "challenge-gallery-image";
     image.alt = photo.guestName ? `Imagem enviada por ${photo.guestName}` : "Imagem do desafio";
-    if (photo?.mediaToken) {
+    if (photo && photo.mediaToken) {
       fetchProtectedImageUrl(
         "/api/challenge-submission-media",
         photo.mediaToken,
@@ -505,15 +516,15 @@ function renderChallengeRankingTable(container, challenge, photos) {
   if (!container) return;
 
   const pointsByGuest = new Map(
-    (challenge?.rankings || [])
-      .filter((entry) => entry?.name)
+    ((challenge && challenge.rankings) || [])
+      .filter((entry) => entry && entry.name)
       .map((entry) => [normalizePersonName(entry.name), Number(entry.points) || 0])
   );
 
   const guestMap = new Map();
 
   (photos || [])
-    .filter((photo) => photo?.guestName)
+    .filter((photo) => photo && photo.guestName)
     .forEach((photo) => {
       const normalized = normalizePersonName(photo.guestName);
       if (!normalized) return;
@@ -522,8 +533,8 @@ function renderChallengeRankingTable(container, challenge, photos) {
       }
     });
 
-  (challenge?.rankings || [])
-    .filter((entry) => entry?.name)
+  ((challenge && challenge.rankings) || [])
+    .filter((entry) => entry && entry.name)
     .forEach((entry) => {
       const normalized = normalizePersonName(entry.name);
       if (!normalized) return;
@@ -604,9 +615,9 @@ function updateWinnerOptions(select, photos, currentChallenge) {
 
   const allEntries = [
     ...(photos || [])
-      .filter((photo) => photo?.guestName)
+      .filter((photo) => photo && photo.guestName)
       .map((photo) => [normalizePersonName(photo.guestName), photo.guestName]),
-    ...(currentChallenge?.winner
+    ...((currentChallenge && currentChallenge.winner)
       ? [[normalizePersonName(currentChallenge.winner), currentChallenge.winner]]
       : [])
   ];
@@ -653,8 +664,8 @@ async function initCreatePage() {
   let keepDraftAfterSave = false;
 
   function syncDraftFromInputs() {
-    localDraft.challengeTitle = titleInput?.value || "";
-    localDraft.prize = prizeInput?.value || "";
+    localDraft.challengeTitle = titleInput ? titleInput.value : "";
+    localDraft.prize = prizeInput ? prizeInput.value : "";
   }
 
   function resetDraftFlags() {
@@ -735,17 +746,21 @@ async function initCreatePage() {
     });
   }
 
-  titleInput?.addEventListener("input", () => {
-    keepDraftAfterSave = false;
-    isTitleDirty = true;
-    syncDraftFromInputs();
-  });
+  if (titleInput) {
+    titleInput.addEventListener("input", () => {
+      keepDraftAfterSave = false;
+      isTitleDirty = true;
+      syncDraftFromInputs();
+    });
+  }
 
-  prizeInput?.addEventListener("input", () => {
-    keepDraftAfterSave = false;
-    isPrizeDirty = true;
-    syncDraftFromInputs();
-  });
+  if (prizeInput) {
+    prizeInput.addEventListener("input", () => {
+      keepDraftAfterSave = false;
+      isPrizeDirty = true;
+      syncDraftFromInputs();
+    });
+  }
 
   if (getAuthToken()) {
     closeAuthModal();
@@ -779,91 +794,101 @@ async function initCreatePage() {
     }
   });
 
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    setStatus(status, "Salvando desafio...");
+  if (form) {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setStatus(status, "Salvando desafio...");
 
-    try {
-      const challenge = await challengeRequest("POST", {
-        challengeTitle: titleInput.value.trim(),
-        prize: prizeInput.value.trim(),
-        resetGame: Boolean(currentChallenge?.roundClosedAt)
-      });
-      resetDraftFlags();
-      applyChallengeToAdmin(challenge);
-      await refreshAdminSubmissions();
-      startFreshDraft();
-      notifyChallengeUpdated("challenge-saved");
-      setStatus(status, "Desafio salvo com sucesso.", "success");
-    } catch (error) {
-      setStatus(status, error.message || "Falha ao salvar desafio.", "error");
-    }
-  });
+      try {
+        const challenge = await challengeRequest("POST", {
+          challengeTitle: titleInput.value.trim(),
+          prize: prizeInput.value.trim(),
+          resetGame: Boolean(currentChallenge && currentChallenge.roundClosedAt)
+        });
+        resetDraftFlags();
+        applyChallengeToAdmin(challenge);
+        await refreshAdminSubmissions();
+        startFreshDraft();
+        notifyChallengeUpdated("challenge-saved");
+        setStatus(status, "Desafio salvo com sucesso.", "success");
+      } catch (error) {
+        setStatus(status, error.message || "Falha ao salvar desafio.", "error");
+      }
+    });
+  }
 
-  finalizeButton?.addEventListener("click", async () => {
-    const winner = winnerInput.value.trim() || currentChallenge?.winner?.trim() || "";
+  if (finalizeButton) {
+    finalizeButton.addEventListener("click", async () => {
+      const currentWinner =
+        currentChallenge && currentChallenge.winner ? currentChallenge.winner.trim() : "";
+      const winner = winnerInput.value.trim() || currentWinner || "";
 
-    finalizeButton.disabled = true;
-    setStatus(
-      adminStatus,
-      winner
-        ? "Finalizando rodada e gerando CSV..."
-        : "Finalizando rodada sem vencedor e gerando CSV..."
-    );
-
-    try {
-      const result = await challengeFinalizeRequest({ winner, finish: true });
-      localWinnerSelection = "";
-      const challenge = await fetchChallenge();
-      applyChallengeToAdmin(challenge);
-      await refreshAdminSubmissions();
-      setStatus(status, "");
-      notifyChallengeUpdated("challenge-finished");
+      finalizeButton.disabled = true;
       setStatus(
         adminStatus,
-        result.csvSaved
-          ? `Desafios encerrados. CSV salvo no Drive como ${result.file?.name || "arquivo.csv"} com ${result.photoCount || 0} foto(s).`
-          : `Desafios encerrados, mas o CSV nao foi gerado. ${result.warning || ""}`.trim(),
-        result.csvSaved ? "success" : "error"
+        winner
+          ? "Finalizando rodada e gerando CSV..."
+          : "Finalizando rodada sem vencedor e gerando CSV..."
       );
-    } catch (error) {
-      setStatus(adminStatus, error.message || "Falha ao finalizar desafios.", "error");
-    } finally {
-      finalizeButton.disabled = false;
-    }
-  });
 
-  saveWinnerButton?.addEventListener("click", async () => {
-    const winner = winnerInput.value.trim() || currentChallenge?.winner?.trim() || "";
-    if (!winner) {
-      setStatus(adminStatus, "Selecione quem ganhou a rodada.", "error");
-      return;
-    }
+      try {
+        const result = await challengeFinalizeRequest({ winner, finish: true });
+        localWinnerSelection = "";
+        const challenge = await fetchChallenge();
+        applyChallengeToAdmin(challenge);
+        await refreshAdminSubmissions();
+        setStatus(status, "");
+        notifyChallengeUpdated("challenge-finished");
+        setStatus(
+          adminStatus,
+          result.csvSaved
+            ? `Desafios encerrados. CSV salvo no Drive como ${(result.file && result.file.name) || "arquivo.csv"} com ${result.photoCount || 0} foto(s).`
+            : `Desafios encerrados, mas o CSV nao foi gerado. ${result.warning || ""}`.trim(),
+          result.csvSaved ? "success" : "error"
+        );
+      } catch (error) {
+        setStatus(adminStatus, error.message || "Falha ao finalizar desafios.", "error");
+      } finally {
+        finalizeButton.disabled = false;
+      }
+    });
+  }
 
-    saveWinnerButton.disabled = true;
-    setStatus(adminStatus, "Indo para a próxima rodada...");
+  if (saveWinnerButton) {
+    saveWinnerButton.addEventListener("click", async () => {
+      const currentWinner =
+        currentChallenge && currentChallenge.winner ? currentChallenge.winner.trim() : "";
+      const winner = winnerInput.value.trim() || currentWinner || "";
+      if (!winner) {
+        setStatus(adminStatus, "Selecione quem ganhou a rodada.", "error");
+        return;
+      }
 
-    try {
-      localWinnerSelection = "";
-      const result = await challengeFinalizeRequest({ winner });
-      const challenge = await fetchChallenge();
-      applyChallengeToAdmin(challenge);
-      await refreshAdminSubmissions();
-      setStatus(status, "");
-      notifyChallengeUpdated("challenge-next-round");
-      setStatus(
-        adminStatus,
-        result.csvSaved
-          ? "Pronto! Agora você está na próxima rodada."
-          : `Proxima rodada iniciada, mas o CSV nao foi gerado. ${result.warning || ""}`.trim(),
-        result.csvSaved ? "success" : "error"
-      );
-    } catch (error) {
-      setStatus(adminStatus, error.message || "Falha ao ir para a próxima rodada.", "error");
-    } finally {
-      saveWinnerButton.disabled = false;
-    }
-  });
+      saveWinnerButton.disabled = true;
+      setStatus(adminStatus, "Indo para a próxima rodada...");
+
+      try {
+        localWinnerSelection = "";
+        const result = await challengeFinalizeRequest({ winner });
+        const challenge = await fetchChallenge();
+        applyChallengeToAdmin(challenge);
+        await refreshAdminSubmissions();
+        setStatus(status, "");
+        notifyChallengeUpdated("challenge-next-round");
+        setStatus(
+          adminStatus,
+          result.csvSaved
+            ? "Pronto! Agora você está na próxima rodada."
+            : `Proxima rodada iniciada, mas o CSV nao foi gerado. ${result.warning || ""}`.trim(),
+          result.csvSaved ? "success" : "error"
+        );
+      } catch (error) {
+        setStatus(adminStatus, error.message || "Falha ao ir para a próxima rodada.", "error");
+      } finally {
+        saveWinnerButton.disabled = false;
+      }
+    });
+  }
 
   window.setInterval(async () => {
     if (document.visibilityState !== "visible") {
@@ -919,11 +944,11 @@ async function initBoardPage() {
   }
 
   function shouldShowCelebrationOverlay(challenge) {
-    return Boolean(challenge?.celebrationResult);
+    return Boolean(challenge && challenge.celebrationResult);
   }
 
   function getLatestFinishedRound(challenge) {
-    return challenge?.celebrationResult || null;
+    return challenge ? challenge.celebrationResult || null : null;
   }
 
   function launchConfetti() {
@@ -962,7 +987,7 @@ async function initBoardPage() {
     }
 
     const topEntries = (latestRound.rankings || [])
-      .filter((entry) => entry?.name)
+      .filter((entry) => entry && entry.name)
       .map((entry) => ({
         name: entry.name,
         points: Number(entry.points) || 0
@@ -1070,9 +1095,15 @@ async function initBoardPage() {
     }, { once: true });
   }
 
-  openGalleryButton?.addEventListener("click", openGalleryModal);
-  closeGalleryButton?.addEventListener("click", closeGalleryModal);
-  closeGalleryBackdrop?.addEventListener("click", closeGalleryModal);
+  if (openGalleryButton) {
+    openGalleryButton.addEventListener("click", openGalleryModal);
+  }
+  if (closeGalleryButton) {
+    closeGalleryButton.addEventListener("click", closeGalleryModal);
+  }
+  if (closeGalleryBackdrop) {
+    closeGalleryBackdrop.addEventListener("click", closeGalleryModal);
+  }
 
   try {
     await refreshBoard(true);
@@ -1102,12 +1133,14 @@ async function initBoardPage() {
     } catch {}
   });
 
-  challengeSyncChannel?.addEventListener("message", async () => {
-    try {
-      await refreshBoard(true);
-      await refreshGallery();
-    } catch {}
-  });
+  if (challengeSyncChannel) {
+    challengeSyncChannel.addEventListener("message", async () => {
+      try {
+        await refreshBoard(true);
+        await refreshGallery();
+      } catch {}
+    });
+  }
 
   window.setInterval(async () => {
     if (document.visibilityState !== "visible") {
@@ -1175,7 +1208,7 @@ function initUploadPage() {
 
   function setUploadButtonLabel(challenge) {
     if (!submit) return;
-    const challengeNumber = challenge?.challengeNumber || 1;
+    const challengeNumber = challenge && challenge.challengeNumber ? challenge.challengeNumber : 1;
     submit.textContent = `Enviar imagem (Rodada ${challengeNumber})`;
   }
 
@@ -1188,44 +1221,46 @@ function initUploadPage() {
     });
   }
 
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const guestName = formatGuestNameForChallenge(nameInput?.value);
-    const file = photoInput?.files?.[0];
+  if (form) {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const guestName = formatGuestNameForChallenge(nameInput ? nameInput.value : "");
+      const file = photoInput && photoInput.files ? photoInput.files[0] : null;
 
-    if (!guestName || !file) {
-      setStatus(status, "Informe seu nome e escolha uma imagem.", "error");
-      return;
-    }
-
-    saveCachedGuestName(guestName);
-    submit.disabled = true;
-    setStatus(status, "Enviando imagem...");
-
-    try {
-      const formData = new FormData();
-      formData.append("guestName", guestName);
-      formData.append("photo", file);
-
-      const response = await fetch("/api/challenge-upload", {
-        method: "POST",
-        body: formData
-      });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(getFriendlyChallengeUploadError(response, payload));
+      if (!guestName || !file) {
+        setStatus(status, "Informe seu nome e escolha uma imagem.", "error");
+        return;
       }
 
-      form.reset();
-      nameInput.value = guestName;
-      setStatus(status, "Imagem enviada com sucesso. Boa sorte no desafio!", "success");
-    } catch (error) {
-      setStatus(status, error.message || "Falha ao enviar imagem.", "error");
-    } finally {
-      submit.disabled = false;
-    }
-  });
+      saveCachedGuestName(guestName);
+      submit.disabled = true;
+      setStatus(status, "Enviando imagem...");
+
+      try {
+        const formData = new FormData();
+        formData.append("guestName", guestName);
+        formData.append("photo", file);
+
+        const response = await fetch("/api/challenge-upload", {
+          method: "POST",
+          body: formData
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(getFriendlyChallengeUploadError(response, payload));
+        }
+
+        form.reset();
+        nameInput.value = guestName;
+        setStatus(status, "Imagem enviada com sucesso. Boa sorte no desafio!", "success");
+      } catch (error) {
+        setStatus(status, error.message || "Falha ao enviar imagem.", "error");
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
 
   async function checkChallengeStatus() {
     if (document.visibilityState !== "visible") {
