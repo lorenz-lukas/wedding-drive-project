@@ -151,7 +151,11 @@ function getFriendlyUploadResponseError(response, payload, rawText, fallbackMess
 
   const contentType = String(response.headers.get("content-type") || "").toLowerCase();
   if (rawText && !contentType.includes("application/json")) {
-    return "O servidor de upload retornou uma resposta invalida. Isso normalmente indica falha no deploy ou configuracao ausente na Vercel.";
+    const compactBody = String(rawText)
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 140);
+    return `Resposta invalida do servidor. HTTP ${response.status}. Content-Type: ${contentType || "desconhecido"}. Trecho: ${compactBody}`;
   }
 
   return fallbackMessage;
