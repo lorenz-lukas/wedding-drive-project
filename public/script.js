@@ -10,6 +10,7 @@ const uploadSection = document.getElementById("upload-section");
 const storySection = document.getElementById("story-section");
 const maxFilesLabel = document.getElementById("max-files-label");
 const maxSizeLabel = document.getElementById("max-size-label");
+const maxTotalSizeLabel = document.getElementById("max-total-size-label");
 const guestModalShell = document.getElementById("guest-modal-shell");
 const guestModalClose = document.getElementById("guest-modal-close");
 const guestValidationForm = document.getElementById("guest-validation-form");
@@ -51,6 +52,7 @@ let galleryObjectUrls = [];
 let uploadConfig = {
   maxFiles: 10,
   maxSizeMb: 15,
+  requestBodyLimitMb: null,
   slideIntervalMs: DEFAULT_SLIDE_INTERVAL_MS,
   firstSlideDelayMs: DEFAULT_FIRST_SLIDE_DELAY_MS
 };
@@ -280,12 +282,16 @@ async function loadGallerySlides() {
 function applyUploadConfig(config) {
   const maxFiles = Number(config.maxFiles) || 10;
   const maxSizeMb = Number(config.maxSizeMb) || 15;
+  const requestBodyLimitMb = config.requestBodyLimitMb
+    ? Number(config.requestBodyLimitMb) || null
+    : null;
   const slideInterval = Number(config.slideIntervalMs) || DEFAULT_SLIDE_INTERVAL_MS;
   const firstSlideDelay = Number(config.firstSlideDelayMs) || DEFAULT_FIRST_SLIDE_DELAY_MS;
 
   uploadConfig = {
     maxFiles,
     maxSizeMb,
+    requestBodyLimitMb,
     slideIntervalMs: slideInterval,
     firstSlideDelayMs: firstSlideDelay
   };
@@ -299,6 +305,10 @@ function applyUploadConfig(config) {
 
   if (maxSizeLabel) {
     maxSizeLabel.textContent = `${maxSizeMb} MB`;
+  }
+
+  if (maxTotalSizeLabel) {
+    maxTotalSizeLabel.textContent = `${requestBodyLimitMb || maxSizeMb} MB`;
   }
 }
 
@@ -668,6 +678,32 @@ if (form) {
     if (filesInput.files.length > uploadConfig.maxFiles) {
       setStatus(`Envie no maximo ${uploadConfig.maxFiles} arquivos por vez.`, "error");
       return;
+    }
+
+    const maxFileSizeBytes = uploadConfig.maxSizeMb * 1024 * 1024;
+    for (const file of filesInput.files) {
+      if (file.size > maxFileSizeBytes) {
+        setStatus(
+          `Cada arquivo deve ter no maximo ${uploadConfig.maxSizeMb} MB.`,
+          "error"
+        );
+        return;
+      }
+    }
+
+    if (uploadConfig.requestBodyLimitMb) {
+      let totalSizeBytes = 0;
+      for (const file of filesInput.files) {
+        totalSizeBytes += file.size;
+      }
+
+      if (totalSizeBytes > uploadConfig.requestBodyLimitMb * 1024 * 1024) {
+        setStatus(
+          `No momento, o total do envio deve ficar em ate ${uploadConfig.requestBodyLimitMb} MB. Envie menos arquivos ou compacte a foto antes de tentar novamente.`,
+          "error"
+        );
+        return;
+      }
     }
 
     if (isUploading) {
