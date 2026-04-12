@@ -125,6 +125,36 @@ async function apiFetch(url, options = {}) {
   return response;
 }
 
+async function readResponsePayload(response) {
+  const rawText = await response.text();
+  let payload = {};
+
+  try {
+    payload = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    payload = {};
+  }
+
+  return {
+    rawText,
+    payload
+  };
+}
+
+function getFriendlyUploadResponseError(response, payload, rawText, fallbackMessage) {
+  if (payload && payload.error) {
+    const details = payload.details ? ` ${payload.details}` : "";
+    return `${payload.error}${details}`.trim();
+  }
+
+  const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+  if (rawText && !contentType.includes("application/json")) {
+    return "O servidor de upload retornou uma resposta invalida. Isso normalmente indica falha no deploy ou configuracao ausente na Vercel.";
+  }
+
+  return fallbackMessage;
+}
+
 function revokeGalleryObjectUrls() {
   galleryObjectUrls.forEach((url) => URL.revokeObjectURL(url));
   galleryObjectUrls = [];
@@ -593,10 +623,17 @@ async function uploadFiles() {
       body: formData
     });
 
-    const payload = await response.json();
+    const { rawText, payload } = await readResponsePayload(response);
 
     if (!response.ok) {
-      throw new Error(payload.error || "Falha ao enviar fotos.");
+      throw new Error(
+        getFriendlyUploadResponseError(
+          response,
+          payload,
+          rawText,
+          "Falha ao enviar fotos."
+        )
+      );
     }
 
     form.reset();
@@ -678,11 +715,17 @@ if (guestValidationForm && guestFirstNameInput && guestLastNameInput) {
         body: JSON.stringify({ guestName })
       });
 
-      const payload = await response.json();
+      const { rawText, payload } = await readResponsePayload(response);
 
       if (!response.ok) {
-        const details = payload.details ? ` ${payload.details}` : "";
-        throw new Error((payload.error || "Nao foi possivel validar seu nome.") + details);
+        throw new Error(
+          getFriendlyUploadResponseError(
+            response,
+            payload,
+            rawText,
+            "Nao foi possivel validar seu nome."
+          )
+        );
       }
 
       setValidatedGuest(payload.guestName);
@@ -743,10 +786,17 @@ if (authForm) {
         body: JSON.stringify({ username, password })
       });
 
-      const payload = await response.json();
+      const { rawText, payload } = await readResponsePayload(response);
 
       if (!response.ok || !payload.token) {
-        throw new Error(payload.error || "Falha no login.");
+        throw new Error(
+          getFriendlyUploadResponseError(
+            response,
+            payload,
+            rawText,
+            "Falha no login."
+          )
+        );
       }
 
       setAuthToken(payload.token);
