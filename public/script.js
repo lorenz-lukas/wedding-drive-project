@@ -83,7 +83,9 @@ function openAuthModal() {
   authModalShell.setAttribute("aria-hidden", "false");
   setAuthStatus("", "info");
   window.setTimeout(() => {
-    authUsernameInput?.focus();
+    if (authUsernameInput) {
+      authUsernameInput.focus();
+    }
   }, 30);
 }
 
@@ -201,7 +203,7 @@ async function loadGallerySlides() {
     revokeGalleryObjectUrls();
 
     const mappedSlides = await Promise.all(payload.photos.map(async (photo, index) => {
-      if (!photo?.mediaToken) {
+      if (!photo || !photo.mediaToken) {
         return null;
       }
 
@@ -422,22 +424,26 @@ function startSlideshow() {
   }, firstSlideDelayMs);
 }
 
-showUploadButton?.addEventListener("click", () => {
-  clearSlideshowTimers();
-  closeStorySection();
-});
-
-galleryToggleButton?.addEventListener("click", async () => {
-  gallerySlideshowEnabled = !gallerySlideshowEnabled;
-  updateGalleryToggleButton();
-
-  if (!gallerySlideshowEnabled) {
+if (showUploadButton) {
+  showUploadButton.addEventListener("click", () => {
     clearSlideshowTimers();
-    return;
-  }
+    closeStorySection();
+  });
+}
 
-  await runGalleryCycle();
-});
+if (galleryToggleButton) {
+  galleryToggleButton.addEventListener("click", async () => {
+    gallerySlideshowEnabled = !gallerySlideshowEnabled;
+    updateGalleryToggleButton();
+
+    if (!gallerySlideshowEnabled) {
+      clearSlideshowTimers();
+      return;
+    }
+
+    await runGalleryCycle();
+  });
+}
 
 if (!IS_GALLERY_ROUTE) {
   if (authModalShell) {
@@ -575,7 +581,7 @@ async function uploadFiles() {
   setStatus("Enviando arquivos...", "info");
 
   const formData = new FormData();
-  formData.append("guestName", guestNameInput?.value?.trim() || "");
+  formData.append("guestName", guestNameInput ? guestNameInput.value.trim() : "");
 
   for (const file of filesInput.files) {
     formData.append("photos", file, file.name);
@@ -595,8 +601,10 @@ async function uploadFiles() {
 
     form.reset();
     applyPersistedGuest();
-    guestValidationForm?.reset();
-    const folderName = payload.guestFolder?.name;
+    if (guestValidationForm) {
+      guestValidationForm.reset();
+    }
+    const folderName = payload.guestFolder ? payload.guestFolder.name : "";
     const successMessage = folderName
       ? `Arquivos enviados com sucesso para a pasta ${folderName}. Obrigado por compartilhar esse momento!`
       : "Arquivos enviados com sucesso. Obrigado por compartilhar esse momento!";
@@ -695,9 +703,15 @@ if (guestValidationForm && guestFirstNameInput && guestLastNameInput) {
   });
 }
 
-guestModalClose?.addEventListener("click", closeGuestModal);
-guestValidationCancel?.addEventListener("click", closeGuestModal);
-modalBackdrop?.addEventListener("click", closeGuestModal);
+if (guestModalClose) {
+  guestModalClose.addEventListener("click", closeGuestModal);
+}
+if (guestValidationCancel) {
+  guestValidationCancel.addEventListener("click", closeGuestModal);
+}
+if (modalBackdrop) {
+  modalBackdrop.addEventListener("click", closeGuestModal);
+}
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && guestModalShell && !guestModalShell.classList.contains("hidden")) {
@@ -705,41 +719,43 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-authForm?.addEventListener("submit", async (event) => {
-  event.preventDefault();
+if (authForm) {
+  authForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-  const username = authUsernameInput?.value?.trim() || "";
-  const password = authPasswordInput?.value || "";
+    const username = authUsernameInput ? authUsernameInput.value.trim() : "";
+    const password = authPasswordInput ? authPasswordInput.value : "";
 
-  if (!username || !password) {
-    setAuthStatus("Informe usuario e senha.", "error");
-    return;
-  }
-
-  authSubmit.disabled = true;
-  setAuthStatus("Validando acesso...", "info");
-
-  try {
-    const response = await fetch("/api/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ username, password })
-    });
-
-    const payload = await response.json();
-
-    if (!response.ok || !payload.token) {
-      throw new Error(payload.error || "Falha no login.");
+    if (!username || !password) {
+      setAuthStatus("Informe usuario e senha.", "error");
+      return;
     }
 
-    setAuthToken(payload.token);
-    setAuthStatus("Acesso autorizado.", "success");
-    await startAppAfterAuth();
-  } catch (error) {
-    setAuthStatus(error.message || "Nao foi possivel autenticar.", "error");
-  } finally {
-    authSubmit.disabled = false;
-  }
-});
+    authSubmit.disabled = true;
+    setAuthStatus("Validando acesso...", "info");
+
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ username, password })
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok || !payload.token) {
+        throw new Error(payload.error || "Falha no login.");
+      }
+
+      setAuthToken(payload.token);
+      setAuthStatus("Acesso autorizado.", "success");
+      await startAppAfterAuth();
+    } catch (error) {
+      setAuthStatus(error.message || "Nao foi possivel autenticar.", "error");
+    } finally {
+      authSubmit.disabled = false;
+    }
+  });
+}
