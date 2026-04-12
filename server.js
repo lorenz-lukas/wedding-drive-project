@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const uploadHandler = require("./api/upload");
+const uploadDebugHandler = require("./api/upload-debug");
 const validateGuestHandler = require("./api/validate-guest");
 const configHandler = require("./api/config");
 const galleryHandler = require("./api/gallery");
@@ -206,6 +207,17 @@ const server = http.createServer(async (req, res) => {
   if (requestUrl.pathname === "/api/upload") {
     try {
       await uploadHandler(req, enhanceResponse(res));
+    } catch (error) {
+      enhanceResponse(res)
+        .status(500)
+        .json({ error: "Falha interna no servidor.", details: error.message });
+    }
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/upload-debug") {
+    try {
+      await uploadDebugHandler(req, enhanceResponse(res));
     } catch (error) {
       enhanceResponse(res)
         .status(500)
