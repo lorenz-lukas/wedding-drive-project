@@ -1,7 +1,6 @@
 const form = document.getElementById("upload-form");
 const statusEl = document.getElementById("status");
 const submitButton = document.getElementById("submit-button");
-const debugUploadButton = document.getElementById("debug-upload-button");
 const guestNameInput = document.getElementById("guestName");
 const guestSummary = document.getElementById("guest-summary");
 const slides = Array.from(document.querySelectorAll("[data-slide]"));
@@ -54,6 +53,7 @@ let uploadConfig = {
   maxFiles: 10,
   maxSizeMb: 15,
   requestBodyLimitMb: null,
+  uploadApiBaseUrl: "",
   slideIntervalMs: DEFAULT_SLIDE_INTERVAL_MS,
   firstSlideDelayMs: DEFAULT_FIRST_SLIDE_DELAY_MS
 };
@@ -126,6 +126,14 @@ async function apiFetch(url, options = {}) {
   }
 
   return response;
+}
+
+function buildUploadApiUrl(pathname) {
+  const baseUrl = uploadConfig.uploadApiBaseUrl || "";
+  if (!baseUrl) {
+    return pathname;
+  }
+  return `${baseUrl}${pathname}`;
 }
 
 async function readResponsePayload(response) {
@@ -443,6 +451,9 @@ function applyUploadConfig(config) {
   const requestBodyLimitMb = config.requestBodyLimitMb
     ? Number(config.requestBodyLimitMb) || null
     : null;
+  const uploadApiBaseUrl = typeof config.uploadApiBaseUrl === "string"
+    ? config.uploadApiBaseUrl.replace(/\/+$/, "")
+    : "";
   const slideInterval = Number(config.slideIntervalMs) || DEFAULT_SLIDE_INTERVAL_MS;
   const firstSlideDelay = Number(config.firstSlideDelayMs) || DEFAULT_FIRST_SLIDE_DELAY_MS;
 
@@ -450,6 +461,7 @@ function applyUploadConfig(config) {
     maxFiles,
     maxSizeMb,
     requestBodyLimitMb,
+    uploadApiBaseUrl,
     slideIntervalMs: slideInterval,
     firstSlideDelayMs: firstSlideDelay
   };
@@ -784,7 +796,7 @@ async function uploadFiles(preparedFilesOverride) {
   }
 
   try {
-    const response = await apiFetch("/api/upload", {
+    const response = await fetch(buildUploadApiUrl("/api/upload"), {
       method: "POST",
       body: formData
     });
@@ -817,63 +829,6 @@ async function uploadFiles(preparedFilesOverride) {
   } finally {
     isUploading = false;
     submitButton.disabled = false;
-  }
-}
-
-async function uploadFilesDebug(preparedFilesOverride) {
-  const filesInput = document.getElementById("photos");
-  if (!form || !debugUploadButton || !filesInput) {
-    return;
-  }
-
-  isUploading = true;
-  debugUploadButton.disabled = true;
-  if (submitButton) {
-    submitButton.disabled = true;
-  }
-  setStatus("Enviando arquivos para diagnostico...", "info");
-
-  const preparedFiles = preparedFilesOverride || await prepareFilesForUpload(filesInput.files);
-  const formData = new FormData();
-  formData.append("guestName", guestNameInput ? guestNameInput.value.trim() : "debug");
-
-  for (const file of preparedFiles) {
-    formData.append("photos", file, file.name);
-  }
-
-  try {
-    const response = await fetch("/api/upload-debug", {
-      method: "POST",
-      body: formData
-    });
-
-    const { rawText, payload } = await readResponsePayload(response);
-
-    if (!response.ok) {
-      throw new Error(
-        getFriendlyUploadResponseError(
-          response,
-          payload,
-          rawText,
-          "Falha ao enviar no upload debug."
-        )
-      );
-    }
-
-    const fileCount = Number(payload.fileCount) || 0;
-    const firstFile = Array.isArray(payload.files) && payload.files.length > 0 ? payload.files[0] : null;
-    const firstFileSummary = firstFile
-      ? ` Primeiro arquivo: ${firstFile.originalFilename || "sem nome"} (${firstFile.mimetype || "sem tipo"}, ${firstFile.size || 0} bytes).`
-      : "";
-    setStatus(`Upload debug ok. ${fileCount} arquivo(s) chegaram na Function.${firstFileSummary}`, "success");
-  } catch (error) {
-    setStatus(error.message || "Falha no upload debug.", "error");
-  } finally {
-    isUploading = false;
-    debugUploadButton.disabled = false;
-    if (submitButton) {
-      submitButton.disabled = false;
-    }
   }
 }
 
@@ -921,24 +876,6 @@ if (form) {
 
     setStatus("Confirme seu nome na lista para liberar o envio.", "info");
     openGuestModal();
-  });
-}
-
-if (debugUploadButton) {
-  debugUploadButton.addEventListener("click", async () => {
-    const filesInput = document.getElementById("photos");
-
-    if (!filesInput || !filesInput.files || filesInput.files.length === 0) {
-      setStatus("Selecione ao menos um arquivo para testar o upload debug.", "error");
-      return;
-    }
-
-    if (isUploading) {
-      return;
-    }
-
-    const preparedFiles = await prepareFilesForUpload(filesInput.files);
-    await uploadFilesDebug(preparedFiles);
   });
 }
 

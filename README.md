@@ -87,6 +87,7 @@ Use o arquivo `.env.example` como base:
 - `UPLOAD_MAX_FILES`: quantidade maxima por envio (padrao 10).
 - `UPLOAD_MAX_SIZE_MB`: tamanho maximo por arquivo em MB (padrao 15).
 - `ALLOWED_ORIGINS`: lista de origens permitidas, separadas por virgula (ex.: `https://seu-dominio.com`).
+- `UPLOAD_API_BASE_URL`: URL base opcional de um backend externo para uploads multipart, como um servico no Cloud Run.
 
 ### Como configurar no `.env` e no GitHub
 
@@ -248,6 +249,41 @@ Observacao:
 ## Deploy no Cloud Run com GitHub Actions
 
 O repositrio agora pode fazer deploy automatico no Google Cloud Run usando a workflow em `.github/workflows/deploy-cloud-run.yml`.
+
+### Migracao recomendada do upload para fora da Vercel
+
+Para contornar instabilidades de upload multipart no celular, a migracao recomendada e:
+
+- manter o site e as rotas leves na Vercel;
+- publicar o backend de upload no Cloud Run;
+- configurar a Vercel para apontar os uploads para a URL do Cloud Run via `UPLOAD_API_BASE_URL`.
+
+Com isso:
+
+- a home, a galeria, o login e `/api/config` continuam servidos pela Vercel;
+- `POST /api/upload` e `POST /api/challenge-upload` passam a sair do front-end direto para o Cloud Run;
+- o limite e o comportamento de upload deixam de depender da Function multipart da Vercel.
+
+### Passo final na Vercel
+
+Depois que o Cloud Run estiver publicado, abra o projeto na Vercel e configure:
+
+- `UPLOAD_API_BASE_URL=https://SEU-SERVICO-DO-CLOUD-RUN`
+
+Exemplo:
+
+```text
+UPLOAD_API_BASE_URL=https://casamento-dougrax-ju-abc123-ue.a.run.app
+```
+
+Depois disso, faca um novo deploy da Vercel. O front-end ja esta preparado para:
+
+- usar `/api/upload` local quando `UPLOAD_API_BASE_URL` estiver vazio;
+- usar `https://SEU-SERVICO-DO-CLOUD-RUN/api/upload` quando a variavel estiver preenchida.
+
+O mesmo vale para:
+
+- `/api/challenge-upload`
 
 ### 1. Criar a autenticacao do GitHub com o Google Cloud
 

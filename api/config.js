@@ -19,6 +19,7 @@ module.exports = async (req, res) => {
   const requestBodyLimitMb = process.env.VERCEL ? VERCEL_SAFE_REQUEST_LIMIT_MB : null;
   const maxFiles = configuredMaxFiles;
   const maxSizeMb = configuredMaxSizeMb;
+  const uploadApiBaseUrl = String(process.env.UPLOAD_API_BASE_URL || "").trim().replace(/\/+$/, "");
   const slideIntervalMs = Number(process.env.SLIDE_INTERVAL_MS || DEFAULT_SLIDE_INTERVAL_MS);
   const firstSlideDelayMs = Number(
     process.env.FIRST_SLIDE_DELAY_MS || DEFAULT_FIRST_SLIDE_DELAY_MS
@@ -28,6 +29,7 @@ module.exports = async (req, res) => {
     maxFiles,
     maxSizeMb,
     requestBodyLimitMb,
+    uploadApiBaseUrl,
     slideIntervalMs,
     firstSlideDelayMs
   });
@@ -36,6 +38,7 @@ module.exports = async (req, res) => {
     maxFiles,
     maxSizeMb,
     requestBodyLimitMb,
+    uploadApiBaseUrl,
     slideIntervalMs,
     firstSlideDelayMs
   });

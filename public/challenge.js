@@ -27,6 +27,7 @@ const challengeSyncChannel =
     ? new BroadcastChannel("casamento_challenge_sync")
     : null;
 const challengeMediaObjectUrls = new Set();
+let challengeUploadApiBaseUrl = "";
 
 function getAuthToken() {
   try {
@@ -71,6 +72,25 @@ async function fetchWithOptionalAuth(url, options = {}) {
     ...options,
     headers
   });
+}
+
+function buildChallengeUploadApiUrl(pathname) {
+  const baseUrl = challengeUploadApiBaseUrl || "";
+  if (!baseUrl) {
+    return pathname;
+  }
+  return `${baseUrl}${pathname}`;
+}
+
+async function loadChallengeUploadApiConfig() {
+  try {
+    const response = await fetch("/api/config", { cache: "no-store" });
+    const { payload } = await readResponsePayload(response);
+
+    if (response.ok && payload && typeof payload.uploadApiBaseUrl === "string") {
+      challengeUploadApiBaseUrl = payload.uploadApiBaseUrl.replace(/\/+$/, "");
+    }
+  } catch {}
 }
 
 async function fetchProtectedImageUrl(endpoint, mediaToken, urlSet) {
@@ -1389,7 +1409,7 @@ function initUploadPage() {
         formData.append("guestName", guestName);
         formData.append("photo", preparedFile, preparedFile.name);
 
-        const response = await fetch("/api/challenge-upload", {
+        const response = await fetch(buildChallengeUploadApiUrl("/api/challenge-upload"), {
           method: "POST",
           body: formData
         });
@@ -1422,6 +1442,7 @@ function initUploadPage() {
   }
 
   setUploadButtonLabel();
+  loadChallengeUploadApiConfig();
   checkChallengeStatus();
   window.setInterval(checkChallengeStatus, UPLOAD_CHALLENGE_POLL_INTERVAL_MS);
 }
