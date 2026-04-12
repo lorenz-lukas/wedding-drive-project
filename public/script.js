@@ -10,7 +10,6 @@ const uploadSection = document.getElementById("upload-section");
 const storySection = document.getElementById("story-section");
 const maxFilesLabel = document.getElementById("max-files-label");
 const maxSizeLabel = document.getElementById("max-size-label");
-const maxTotalSizeLabel = document.getElementById("max-total-size-label");
 const guestModalShell = document.getElementById("guest-modal-shell");
 const guestModalClose = document.getElementById("guest-modal-close");
 const guestValidationForm = document.getElementById("guest-validation-form");
@@ -155,6 +154,179 @@ function getFriendlyUploadResponseError(response, payload, rawText, fallbackMess
   }
 
   return fallbackMessage;
+}
+
+function getFileExtensionFromType(mimeType) {
+  if (mimeType === "image/png") return ".png";
+  if (mimeType === "image/webp") return ".webp";
+  return ".jpg";
+}
+
+function renameFileWithExtension(fileName, extension) {
+  const baseName = String(fileName || "arquivo")
+    .replace(/\.[a-z0-9]+$/i, "")
+    .trim();
+  return `${baseName || "arquivo"}${extension}`;
+}
+
+function isCompressibleImage(file) {
+  return Boolean(
+    file &&
+    typeof file.type === "string" &&
+    /^image\/(jpeg|jpg|png|webp)$/i.test(file.type)
+  );
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Nao foi possivel abrir a imagem para compactacao."));
+    };
+
+    image.src = objectUrl;
+  });
+}
+
+function canvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Nao foi possivel gerar a imagem compactada."));
+        return;
+      }
+      resolve(blob);
+    }, mimeType, quality);
+  });
+}
+
+async function compressImageFile(file, targetMaxBytes) {
+  const image = await loadImageFromFile(file);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const dimensionScales = [1, 0.85, 0.72, 0.6];
+  const qualitySteps = [0.82, 0.74, 0.66, 0.58, 0.5];
+  let bestBlob = null;
+
+  for (const dimensionScale of dimensionScales) {
+    const width = Math.max(1, Math.round(sourceWidth * dimensionScale));
+    const height = Math.max(1, Math.round(sourceHeight * dimensionScale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Nao foi possivel preparar a compactacao da imagem.");
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+
+    for (const quality of qualitySteps) {
+      const blob = await canvasToBlob(canvas, "image/jpeg", quality);
+
+      if (!bestBlob || blob.size < bestBlob.size) {
+        bestBlob = blob;
+      }
+
+      if (blob.size <= targetMaxBytes) {
+        return new File(
+          [blob],
+          renameFileWithExtension(file.name, getFileExtensionFromType(blob.type)),
+          {
+            type: blob.type,
+            lastModified: file.lastModified || Date.now()
+          }
+        );
+      }
+    }
+  }
+
+  if (!bestBlob) {
+    return file;
+  }
+
+  return new File(
+    [bestBlob],
+    renameFileWithExtension(file.name, getFileExtensionFromType(bestBlob.type)),
+    {
+      type: bestBlob.type,
+      lastModified: file.lastModified || Date.now()
+    }
+  );
+}
+
+function getTotalFilesSize(files) {
+  let totalSizeBytes = 0;
+
+  for (const file of files) {
+    totalSizeBytes += file.size;
+  }
+
+  return totalSizeBytes;
+}
+
+async function prepareFilesForUpload(fileList) {
+  const originalFiles = Array.from(fileList || []);
+  const perFileLimitBytes = uploadConfig.maxSizeMb * 1024 * 1024;
+  const totalLimitBytes = uploadConfig.requestBodyLimitMb
+    ? uploadConfig.requestBodyLimitMb * 1024 * 1024
+    : null;
+  const compressibleCount = originalFiles.filter(isCompressibleImage).length;
+
+  if (compressibleCount === 0) {
+    return originalFiles;
+  }
+
+  const totalSizeBytes = getTotalFilesSize(originalFiles);
+  const needsCompression = originalFiles.some((file) => (
+    isCompressibleImage(file) && (
+      file.size > perFileLimitBytes ||
+      (totalLimitBytes && totalSizeBytes > totalLimitBytes)
+    )
+  ));
+
+  if (!needsCompression) {
+    return originalFiles;
+  }
+
+  const sharedImageBudgetBytes = totalLimitBytes
+    ? Math.max(900 * 1024, Math.floor(totalLimitBytes / Math.max(compressibleCount, 1)))
+    : perFileLimitBytes;
+  const targetMaxBytes = totalLimitBytes
+    ? Math.min(perFileLimitBytes, sharedImageBudgetBytes)
+    : perFileLimitBytes;
+  const preparedFiles = [];
+
+  setStatus("Preparando fotos para envio...", "info");
+
+  for (const file of originalFiles) {
+    if (!isCompressibleImage(file)) {
+      preparedFiles.push(file);
+      continue;
+    }
+
+    if (file.size <= targetMaxBytes && (!totalLimitBytes || totalSizeBytes <= totalLimitBytes)) {
+      preparedFiles.push(file);
+      continue;
+    }
+
+    try {
+      preparedFiles.push(await compressImageFile(file, targetMaxBytes));
+    } catch {
+      preparedFiles.push(file);
+    }
+  }
+
+  return preparedFiles;
 }
 
 function revokeGalleryObjectUrls() {
@@ -307,9 +479,6 @@ function applyUploadConfig(config) {
     maxSizeLabel.textContent = `${maxSizeMb} MB`;
   }
 
-  if (maxTotalSizeLabel) {
-    maxTotalSizeLabel.textContent = `${requestBodyLimitMb || maxSizeMb} MB`;
-  }
 }
 
 async function loadUploadConfig() {
@@ -610,7 +779,7 @@ function setValidatedGuest(guestName) {
   }
 }
 
-async function uploadFiles() {
+async function uploadFiles(preparedFilesOverride) {
   const filesInput = document.getElementById("photos");
   if (!form || !submitButton || !filesInput) {
     return;
@@ -620,10 +789,11 @@ async function uploadFiles() {
   submitButton.disabled = true;
   setStatus("Enviando arquivos...", "info");
 
+  const preparedFiles = preparedFilesOverride || await prepareFilesForUpload(filesInput.files);
   const formData = new FormData();
   formData.append("guestName", guestNameInput ? guestNameInput.value.trim() : "");
 
-  for (const file of filesInput.files) {
+  for (const file of preparedFiles) {
     formData.append("photos", file, file.name);
   }
 
@@ -680,11 +850,14 @@ if (form) {
       return;
     }
 
+    const preparedFiles = await prepareFilesForUpload(filesInput.files);
     const maxFileSizeBytes = uploadConfig.maxSizeMb * 1024 * 1024;
-    for (const file of filesInput.files) {
+    for (const file of preparedFiles) {
       if (file.size > maxFileSizeBytes) {
         setStatus(
-          `Cada arquivo deve ter no maximo ${uploadConfig.maxSizeMb} MB.`,
+          isCompressibleImage(file)
+            ? `Nao foi possivel reduzir a foto o suficiente. O limite final por arquivo e ${uploadConfig.maxSizeMb} MB.`
+            : `Cada arquivo deve ter no maximo ${uploadConfig.maxSizeMb} MB. Fotos sao compactadas automaticamente, mas videos e formatos sem compactacao precisam respeitar esse limite.`,
           "error"
         );
         return;
@@ -692,14 +865,11 @@ if (form) {
     }
 
     if (uploadConfig.requestBodyLimitMb) {
-      let totalSizeBytes = 0;
-      for (const file of filesInput.files) {
-        totalSizeBytes += file.size;
-      }
+      const totalSizeBytes = getTotalFilesSize(preparedFiles);
 
       if (totalSizeBytes > uploadConfig.requestBodyLimitMb * 1024 * 1024) {
         setStatus(
-          `No momento, o total do envio deve ficar em ate ${uploadConfig.requestBodyLimitMb} MB. Envie menos arquivos ou compacte a foto antes de tentar novamente.`,
+          `Mesmo apos a compactacao, o total do envio precisa ficar em ate ${uploadConfig.requestBodyLimitMb} MB. Envie menos arquivos por vez.`,
           "error"
         );
         return;
@@ -714,7 +884,7 @@ if (form) {
     if (persistedGuest) {
       setValidatedGuest(persistedGuest.fullName);
       setStatus(`Enviando como ${persistedGuest.fullName}...`, "info");
-      await uploadFiles();
+      await uploadFiles(preparedFiles);
       return;
     }
 

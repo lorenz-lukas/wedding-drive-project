@@ -18,9 +18,7 @@ module.exports = async (req, res) => {
   const configuredMaxSizeMb = Number(process.env.UPLOAD_MAX_SIZE_MB || DEFAULT_MAX_SIZE_MB);
   const requestBodyLimitMb = process.env.VERCEL ? VERCEL_SAFE_REQUEST_LIMIT_MB : null;
   const maxFiles = configuredMaxFiles;
-  const maxSizeMb = requestBodyLimitMb
-    ? Math.min(configuredMaxSizeMb, requestBodyLimitMb)
-    : configuredMaxSizeMb;
+  const maxSizeMb = configuredMaxSizeMb;
   const slideIntervalMs = Number(process.env.SLIDE_INTERVAL_MS || DEFAULT_SLIDE_INTERVAL_MS);
   const firstSlideDelayMs = Number(
     process.env.FIRST_SLIDE_DELAY_MS || DEFAULT_FIRST_SLIDE_DELAY_MS

@@ -1177,7 +1177,143 @@ function formatGuestNameForChallenge(value) {
     .toUpperCase();
 }
 
-function getFriendlyChallengeUploadError(response, payload) {
+function getFileExtensionFromMimeType(mimeType) {
+  if (mimeType === "image/png") return ".png";
+  if (mimeType === "image/webp") return ".webp";
+  return ".jpg";
+}
+
+function renameChallengeUploadFile(fileName, extension) {
+  const baseName = String(fileName || "imagem")
+    .replace(/\.[a-z0-9]+$/i, "")
+    .trim();
+  return `${baseName || "imagem"}${extension}`;
+}
+
+function isCompressibleChallengeImage(file) {
+  return Boolean(
+    file &&
+    typeof file.type === "string" &&
+    /^image\/(jpeg|jpg|png|webp)$/i.test(file.type)
+  );
+}
+
+function loadChallengeUploadImage(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Nao foi possivel abrir a imagem para compactacao."));
+    };
+
+    image.src = objectUrl;
+  });
+}
+
+function challengeCanvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Nao foi possivel gerar a imagem compactada."));
+        return;
+      }
+      resolve(blob);
+    }, mimeType, quality);
+  });
+}
+
+async function compressChallengeUploadImage(file, targetMaxBytes) {
+  const image = await loadChallengeUploadImage(file);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const dimensionScales = [1, 0.85, 0.72, 0.6];
+  const qualitySteps = [0.82, 0.74, 0.66, 0.58, 0.5];
+  let bestBlob = null;
+
+  for (const dimensionScale of dimensionScales) {
+    const width = Math.max(1, Math.round(sourceWidth * dimensionScale));
+    const height = Math.max(1, Math.round(sourceHeight * dimensionScale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Nao foi possivel preparar a compactacao da imagem.");
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+
+    for (const quality of qualitySteps) {
+      const blob = await challengeCanvasToBlob(canvas, "image/jpeg", quality);
+
+      if (!bestBlob || blob.size < bestBlob.size) {
+        bestBlob = blob;
+      }
+
+      if (blob.size <= targetMaxBytes) {
+        return new File(
+          [blob],
+          renameChallengeUploadFile(file.name, getFileExtensionFromMimeType(blob.type)),
+          {
+            type: blob.type,
+            lastModified: file.lastModified || Date.now()
+          }
+        );
+      }
+    }
+  }
+
+  if (!bestBlob) {
+    return file;
+  }
+
+  return new File(
+    [bestBlob],
+    renameChallengeUploadFile(file.name, getFileExtensionFromMimeType(bestBlob.type)),
+    {
+      type: bestBlob.type,
+      lastModified: file.lastModified || Date.now()
+    }
+  );
+}
+
+async function prepareChallengeUploadFile(file, statusElement) {
+  if (!file || !isCompressibleChallengeImage(file)) {
+    return file;
+  }
+
+  const configuredLimitBytes = 15 * 1024 * 1024;
+  const vercelRequestBudgetBytes = 4 * 1024 * 1024;
+  const targetMaxBytes = Math.min(configuredLimitBytes, vercelRequestBudgetBytes);
+
+  if (file.size <= targetMaxBytes) {
+    return file;
+  }
+
+  setStatus(statusElement, "Preparando imagem para envio...");
+
+  try {
+    return await compressChallengeUploadImage(file, targetMaxBytes);
+  } catch {
+    return file;
+  }
+}
+
+function getFriendlyChallengeUploadError(response, payload, rawText = "") {
+  const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+
+  if (rawText && !contentType.includes("application/json") && response.status >= 500) {
+    return "O servidor de upload retornou uma resposta invalida. Isso normalmente indica limite da plataforma ou falha no deploy.";
+  }
+
   if (response.status === 405) {
     return "Essa versao da pagina ficou desatualizada. Atualize a pagina e tente novamente.";
   }
@@ -1207,9 +1343,11 @@ function initUploadPage() {
   const photoInput = document.getElementById("challengePhoto");
   const status = document.getElementById("challenge-upload-status");
   const submit = document.getElementById("challenge-upload-submit");
+  let currentChallenge = null;
+
   function setUploadButtonLabel() {
     if (!submit) return;
-    const challengeNumber = challenge && challenge.challengeNumber ? challenge.challengeNumber : 1;
+    const challengeNumber = currentChallenge && currentChallenge.challengeNumber ? currentChallenge.challengeNumber : 1;
     submit.textContent = `Enviar imagem (Rodada ${challengeNumber})`;
   }
 
@@ -1238,18 +1376,28 @@ function initUploadPage() {
       setStatus(status, "Enviando imagem...");
 
       try {
+        const preparedFile = await prepareChallengeUploadFile(file, status);
+
+        if (preparedFile.size > 15 * 1024 * 1024) {
+          throw new Error(
+            isCompressibleChallengeImage(preparedFile)
+              ? "Nao foi possivel reduzir a foto o suficiente. O limite final por imagem e 15 MB."
+              : "A imagem precisa ter no maximo 15 MB."
+          );
+        }
+
         const formData = new FormData();
         formData.append("guestName", guestName);
-        formData.append("photo", file);
+        formData.append("photo", preparedFile, preparedFile.name);
 
         const response = await fetch("/api/challenge-upload", {
           method: "POST",
           body: formData
         });
-        const payload = await response.json().catch(() => ({}));
+        const { rawText, payload } = await readResponsePayload(response);
 
         if (!response.ok) {
-          throw new Error(getFriendlyChallengeUploadError(response, payload));
+          throw new Error(getFriendlyChallengeUploadError(response, payload, rawText));
         }
 
         form.reset();
@@ -1263,7 +1411,20 @@ function initUploadPage() {
     });
   }
 
+  async function checkChallengeStatus() {
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
+    try {
+      currentChallenge = await fetchChallenge();
+      setUploadButtonLabel();
+    } catch {}
+  }
+
   setUploadButtonLabel();
+  checkChallengeStatus();
+  window.setInterval(checkChallengeStatus, UPLOAD_CHALLENGE_POLL_INTERVAL_MS);
 }
 
 if (pageMode === "create") {
