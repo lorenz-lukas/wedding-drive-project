@@ -10,6 +10,7 @@ const UPLOAD_CHALLENGE_POLL_INTERVAL_MS = Math.max(
   300000,
   parseInt(window.CHALLENGE_UPLOAD_POLL_INTERVAL_MS || "300000", 10)
 );
+const CLIENT_CHALLENGE_IMAGE_TARGET_MB = 3;
 
 const pageMode =
   document.body && document.body.dataset
@@ -1290,9 +1291,7 @@ async function prepareChallengeUploadFile(file, statusElement) {
     return file;
   }
 
-  const configuredLimitBytes = 15 * 1024 * 1024;
-  const vercelRequestBudgetBytes = 4 * 1024 * 1024;
-  const targetMaxBytes = Math.min(configuredLimitBytes, vercelRequestBudgetBytes);
+  const targetMaxBytes = CLIENT_CHALLENGE_IMAGE_TARGET_MB * 1024 * 1024;
 
   if (file.size <= targetMaxBytes) {
     return file;

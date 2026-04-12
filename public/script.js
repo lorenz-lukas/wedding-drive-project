@@ -36,6 +36,7 @@ const GUEST_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const DEFAULT_SLIDE_INTERVAL_MS = 2000;
 const HAS_UPLOAD_FLOW = Boolean(form && uploadSection);
 const DEFAULT_FIRST_SLIDE_DELAY_MS = 5000;
+const CLIENT_IMAGE_UPLOAD_TARGET_MB = 3;
 let activeSlideIndex = 0;
 let slideTimer = null;
 let firstSlideTimeout = null;
@@ -276,34 +277,14 @@ function getTotalFilesSize(files) {
 
 async function prepareFilesForUpload(fileList) {
   const originalFiles = Array.from(fileList || []);
-  const perFileLimitBytes = uploadConfig.maxSizeMb * 1024 * 1024;
-  const totalLimitBytes = uploadConfig.requestBodyLimitMb
-    ? uploadConfig.requestBodyLimitMb * 1024 * 1024
-    : null;
-  const compressibleCount = originalFiles.filter(isCompressibleImage).length;
-
-  if (compressibleCount === 0) {
-    return originalFiles;
-  }
-
-  const totalSizeBytes = getTotalFilesSize(originalFiles);
-  const needsCompression = originalFiles.some((file) => (
-    isCompressibleImage(file) && (
-      file.size > perFileLimitBytes ||
-      (totalLimitBytes && totalSizeBytes > totalLimitBytes)
-    )
+  const targetMaxBytes = CLIENT_IMAGE_UPLOAD_TARGET_MB * 1024 * 1024;
+  const hasLargeCompressibleImage = originalFiles.some((file) => (
+    isCompressibleImage(file) && file.size > targetMaxBytes
   ));
 
-  if (!needsCompression) {
+  if (!hasLargeCompressibleImage) {
     return originalFiles;
   }
-
-  const sharedImageBudgetBytes = totalLimitBytes
-    ? Math.max(900 * 1024, Math.floor(totalLimitBytes / Math.max(compressibleCount, 1)))
-    : perFileLimitBytes;
-  const targetMaxBytes = totalLimitBytes
-    ? Math.min(perFileLimitBytes, sharedImageBudgetBytes)
-    : perFileLimitBytes;
   const preparedFiles = [];
 
   setStatus("Preparando fotos para envio...", "info");
@@ -314,7 +295,7 @@ async function prepareFilesForUpload(fileList) {
       continue;
     }
 
-    if (file.size <= targetMaxBytes && (!totalLimitBytes || totalSizeBytes <= totalLimitBytes)) {
+    if (file.size <= targetMaxBytes) {
       preparedFiles.push(file);
       continue;
     }
@@ -856,20 +837,8 @@ if (form) {
       if (file.size > maxFileSizeBytes) {
         setStatus(
           isCompressibleImage(file)
-            ? `Nao foi possivel reduzir a foto o suficiente. O limite final por arquivo e ${uploadConfig.maxSizeMb} MB.`
-            : `Cada arquivo deve ter no maximo ${uploadConfig.maxSizeMb} MB. Fotos sao compactadas automaticamente, mas videos e formatos sem compactacao precisam respeitar esse limite.`,
-          "error"
-        );
-        return;
-      }
-    }
-
-    if (uploadConfig.requestBodyLimitMb) {
-      const totalSizeBytes = getTotalFilesSize(preparedFiles);
-
-      if (totalSizeBytes > uploadConfig.requestBodyLimitMb * 1024 * 1024) {
-        setStatus(
-          `Mesmo apos a compactacao, o total do envio precisa ficar em ate ${uploadConfig.requestBodyLimitMb} MB. Envie menos arquivos por vez.`,
+            ? `Nao foi possivel reduzir a foto o suficiente. Cada imagem precisa terminar com ate ${uploadConfig.maxSizeMb} MB.`
+            : `Cada arquivo deve ter no maximo ${uploadConfig.maxSizeMb} MB. Fotos sao compactadas automaticamente para cerca de ${CLIENT_IMAGE_UPLOAD_TARGET_MB} MB, mas videos e formatos sem compactacao precisam respeitar esse limite.`,
           "error"
         );
         return;
