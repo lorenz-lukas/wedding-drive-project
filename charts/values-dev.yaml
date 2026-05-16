@@ -1,0 +1,54 @@
+# Generated for helm-chart-well-architect/charts/application.
+# Platform: AWS
+
+nameOverride: wedding-drive-project
+fullnameOverride: wedding-drive-project
+
+# Ignored by the application chart when autoscaling.enabled is true.
+replicaCount: 2
+
+image:
+  repository: wedding-drive-project
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets:
+  - name: wedding-drive-project-pull-secrets
+
+ingress:
+  enabled: true
+  className: "ClusterIP"
+  annotations: {}
+  hosts:
+    - host: wedding-drive-project.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+    ephemeral-storage: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+    ephemeral-storage: 128Mi
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
