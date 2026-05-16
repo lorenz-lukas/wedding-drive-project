@@ -8,7 +8,7 @@ fullnameOverride: wedding-drive-project
 replicaCount: 2
 
 image:
-  repository: wedding-drive-project
+  repository: 1234
   pullPolicy: Always
   tag: "latest"
 
@@ -20,7 +20,7 @@ ingress:
   className: "ClusterIP"
   annotations: {}
   hosts:
-    - host: wedding-drive-project.local
+    - host: wedding-drive-project.myapp.local
       paths:
         - path: /
           pathType: ImplementationSpecific
@@ -52,3 +52,66 @@ autoscaling:
   maxReplicas: 10
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
+
+secretStores:
+  enabled: false
+  stores: []
+  # AWS option:
+  # stores:
+  #   - name: aws-secrets
+  #     enabled: true
+  #     kind: SecretStore
+  #     provider: aws
+  #     aws:
+  #       service: SecretsManager
+  #       region: us-east-1
+  #       auth:
+  #         jwt:
+  #           serviceAccountRef:
+  #             name: external-secrets
+  # Vault option:
+  # stores:
+  #   - name: vault-secrets
+  #     enabled: true
+  #     kind: SecretStore
+  #     provider: vault
+  #     vault:
+  #       server: https://vault.example.com
+  #       path: secret
+  #       version: v2
+
+secrets:
+  enabled: false
+  items: []
+  # Plain Secret option:
+  # items:
+  #   - name: app-secret
+  #     enabled: true
+  #     type: secret
+  #     stringData:
+  #       username: admin
+  #       password: change-me
+  # SealedSecret option:
+  # items:
+  #   - name: sealed-app-secret
+  #     enabled: true
+  #     type: sealedSecret
+  #     encryptedData:
+  #       password: AgBy...
+  # ExternalSecret option:
+  # items:
+  #   - name: external-app-secret
+  #     enabled: true
+  #     type: externalSecret
+  #     refreshInterval: 1h
+  #     secretStoreRef:
+  #       name: aws-secrets
+  #       kind: SecretStore
+  #     target:
+  #       creationPolicy: Owner
+  #     data:
+  #       - secretKey: password
+  #         remoteRef:
+  #           key: prod/application
+  #           property: password
+
