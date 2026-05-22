@@ -8,9 +8,9 @@ fullnameOverride: wedding-drive-project
 replicaCount: 2
 
 image:
-  repository: 1234
+  repository: wedding-drive
   pullPolicy: Always
-  tag: "latest"
+  tag: "12345678"
 
 imagePullSecrets:
   - name: wedding-drive-project-pull-secrets
@@ -53,65 +53,12 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
 
+envs: []
+
 secretStores:
   enabled: false
   stores: []
-  # AWS option:
-  # stores:
-  #   - name: aws-secrets
-  #     enabled: true
-  #     kind: SecretStore
-  #     provider: aws
-  #     aws:
-  #       service: SecretsManager
-  #       region: us-east-1
-  #       auth:
-  #         jwt:
-  #           serviceAccountRef:
-  #             name: external-secrets
-  # Vault option:
-  # stores:
-  #   - name: vault-secrets
-  #     enabled: true
-  #     kind: SecretStore
-  #     provider: vault
-  #     vault:
-  #       server: https://vault.example.com
-  #       path: secret
-  #       version: v2
-
 secrets:
   enabled: false
   items: []
-  # Plain Secret option:
-  # items:
-  #   - name: app-secret
-  #     enabled: true
-  #     type: secret
-  #     stringData:
-  #       username: admin
-  #       password: change-me
-  # SealedSecret option:
-  # items:
-  #   - name: sealed-app-secret
-  #     enabled: true
-  #     type: sealedSecret
-  #     encryptedData:
-  #       password: AgBy...
-  # ExternalSecret option:
-  # items:
-  #   - name: external-app-secret
-  #     enabled: true
-  #     type: externalSecret
-  #     refreshInterval: 1h
-  #     secretStoreRef:
-  #       name: aws-secrets
-  #       kind: SecretStore
-  #     target:
-  #       creationPolicy: Owner
-  #     data:
-  #       - secretKey: password
-  #         remoteRef:
-  #           key: prod/application
-  #           property: password
 
