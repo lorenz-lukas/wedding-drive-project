@@ -8,9 +8,9 @@ fullnameOverride: wedding-drive-project
 replicaCount: 2
 
 image:
-  repository: wedding-drive
+  repository: wedding-drive-project
   pullPolicy: Always
-  tag: "12345678"
+  tag: "latest"
 
 imagePullSecrets:
   - name: wedding-drive-project-pull-secrets
@@ -47,18 +47,22 @@ readinessProbe:
     port: http
 
 autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 10
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 3
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
 
-envs: []
+envs:
+  - name: HI
+    value: bye
 
 secretStores:
   enabled: false
   stores: []
 secrets:
-  enabled: false
-  items: []
+  enabled: true
+  items:
+    - name: HI
+      value: Ynll
 
