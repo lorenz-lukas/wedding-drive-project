@@ -55,7 +55,7 @@ autoscaling:
 
 envs:
   - name: HI
-    value: bye
+    value: ÑSDÇFD
 
 secretStores:
   enabled: false
@@ -64,5 +64,5 @@ secrets:
   enabled: true
   items:
     - name: HI
-      value: SGk=
+      value: w6dsa2Rmw6dhbHNkbmY=
 
